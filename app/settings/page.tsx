@@ -14,6 +14,21 @@ function SettingsContent() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [hasStravaConnection, setHasStravaConnection] = useState(false);
+
+  const stravaConnected = searchParams.get("strava");
+  const stravaConnectedParam =
+    stravaConnected === "connected" || stravaConnected === "connected_dev";
+  const devMode = process.env.NODE_ENV !== "production";
+  const showSyncButton = stravaConnectedParam || hasStravaConnection || devMode;
+
+  const stravaStatus = profile?.strava_athlete_id
+    ? `Connected (athlete id ${profile.strava_athlete_id})`
+    : stravaConnectedParam
+    ? "Connected"
+    : hasStravaConnection
+    ? "Connected"
+    : "Not connected";
 
   async function syncActivities() {
     const client = supabase;
@@ -94,12 +109,19 @@ function SettingsContent() {
     }
   }
 
+  async function handleSyncActivities() {
+    if (profile?.id) {
+      await syncActivities();
+    } else {
+      await syncActivitiesDev();
+    }
+  }
+
   useEffect(() => {
     // Handle query params for success/error messages
-    const stravaConnected = searchParams.get("strava");
     const errorParam = searchParams.get("error");
 
-    if (stravaConnected === "connected" || stravaConnected === "connected_dev") {
+    if (stravaConnectedParam) {
       setSuccess(
         stravaConnected === "connected" ? "Strava connected successfully!" : "Strava connected (dev)"
       );
@@ -145,45 +167,19 @@ function SettingsContent() {
       }
     }
 
-    async function syncActivities() {
-      if (!client || !profile?.id) {
-        setError("Unable to sync activities: user not signed in.");
-        return;
-      }
-      setSyncing(true);
-      setError(null);
-      setSuccess(null);
+    async function loadStravaConnectionStatus() {
       try {
-        const sessionResult = await client.auth.getSession();
-        const session = sessionResult.data?.session;
-        const accessToken = session?.access_token;
-        if (!accessToken) {
-          setError("No authenticated session found.");
-          return;
-        }
-
-        const response = await fetch("/api/strava/sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ access_token: accessToken }),
-        });
-
-        const result = await response.json();
-        if (!response.ok) {
-          setError(result.error || "Failed to sync activities.");
-          return;
-        }
-
-        setSuccess(`Imported ${result.imported} activities`);
+        const response = await fetch("/api/strava/status");
+        if (!response.ok) return;
+        const data = await response.json();
+        setHasStravaConnection(Boolean(data?.has_connection));
       } catch (err) {
-        console.error(err);
-        setError("An unexpected error occurred while syncing activities.");
-      } finally {
-        setSyncing(false);
+        console.error("Failed to load Strava connection status:", err);
       }
     }
 
     loadUser(client);
+    loadStravaConnectionStatus();
 
     const { data: sub } = client.auth.onAuthStateChange(async (_event, session) => {
       const user = session?.user ?? null;
@@ -251,34 +247,36 @@ function SettingsContent() {
                 >
                   {profile?.strava_athlete_id ? "Reconnect Strava" : "Connect Strava"}
                 </a>
-                <button
-                  type="button"
-                  disabled={syncing}
-                  onClick={syncActivities}
-                  className="inline-flex items-center rounded-lg bg-slate-700 px-4 py-2 font-semibold text-white transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {syncing ? "Syncing..." : "Sync Strava Activities"}
-                </button>
+                {showSyncButton && (
+                  <button
+                    type="button"
+                    disabled={syncing}
+                    onClick={handleSyncActivities}
+                    className="inline-flex items-center rounded-lg bg-slate-700 px-4 py-2 font-semibold text-white transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {syncing ? "Syncing..." : "Sync Strava Activities"}
+                  </button>
+                )}
               </div>
             </>
           ) : (
             <>
               <p className="mt-4 text-base text-slate-300">Please sign in to view account details.</p>
-              <div className="mt-6 flex gap-3">
+              <div className="mt-6 flex flex-wrap items-center gap-3">
                 <a
                   href="/api/strava/connect"
                   className="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 font-semibold text-white transition hover:bg-orange-700"
                 >
                   Connect Strava
                 </a>
-                {process.env.NODE_ENV !== "production" && (
+                {showSyncButton && (
                   <button
                     type="button"
                     disabled={syncing}
-                    onClick={syncActivitiesDev}
+                    onClick={handleSyncActivities}
                     className="inline-flex items-center rounded-lg bg-slate-700 px-4 py-2 font-semibold text-white transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {syncing ? "Syncing..." : "Dev: Sync Strava Activities"}
+                    {syncing ? "Syncing..." : "Sync Strava Activities"}
                   </button>
                 )}
               </div>

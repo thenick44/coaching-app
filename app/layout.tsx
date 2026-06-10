@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Header from "./components/Header";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -36,22 +37,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-slate-950 text-white">
-        <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/95 px-6 py-4 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-6">
-            <div className="text-lg font-semibold">Nick&apos;s Coaching App</div>
-            <nav className="flex flex-wrap items-center gap-4 text-sm font-medium text-slate-200">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="rounded-full px-4 py-2 transition hover:bg-white/10 hover:text-white"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-        </header>
+        <Header />
         <div className="flex-1">{children}</div>
       </body>
     </html>

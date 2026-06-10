@@ -76,13 +76,13 @@ export async function GET(request: NextRequest) {
       developmentFallback = true;
 
       const { data: fallbackProfile, error: profileError } = await supabaseAdmin
-        .from("public.profiles")
+        .from("profiles")
         .select("id")
         .limit(1)
         .maybeSingle();
 
       if (profileError) {
-        console.error("Error querying public.profiles for development fallback:", profileError.message);
+        console.error("Error querying profiles for development fallback:", profileError.message);
       }
 
       if (fallbackProfile?.id) {
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
         console.log("Development mode: using first profile row for Strava connection", fallbackProfile.id);
       } else {
         console.error(
-          "Development mode active but no profile row was found in public.profiles. Cannot store Strava connection."
+          "Development mode active but no profile row was found in profiles. Cannot store Strava connection."
         );
         return NextResponse.redirect(new URL("/settings?error=oauth_error", request.url));
       }
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
       }
 
       const { error: upsertError } = await supabaseAdmin
-        .from("public.strava_connections")
+        .from("strava_connections")
         .upsert(
           {
             user_id: userId,

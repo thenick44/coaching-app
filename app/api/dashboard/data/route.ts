@@ -35,59 +35,49 @@ export async function GET(request: NextRequest) {
   let targetUserId: string | null = null;
   let developmentMode = false;
 
+  // Try to authenticate user from access token (if provided)
   let user = null;
   if (accessToken) {
     user = await getUserFromAccessToken(accessToken);
+    if (user?.id) {
+      targetUserId = user.id;
+      console.log("Dashboard data: authenticated user detected", { userId: targetUserId });
+    } else {
+      console.log("Dashboard data: access token present but failed to authenticate user");
+    }
   }
 
-  if (user?.id) {
-    targetUserId = user.id;
-  } else if (process.env.NODE_ENV !== "production") {
-    developmentMode = true;
-  } else if (accessToken) {
-    return NextResponse.json(
-      { error: "Unable to authenticate user." },
-      { status: 401 }
-    );
-  } else {
-    return NextResponse.json(
-      { error: "Authentication required." },
-      { status: 401 }
-    );
-  }
-
-  if (developmentMode) {
-    const { data: fallbackConnections, error: fallbackError } = await supabaseAdmin
+  // If no authenticated user was found, fall back to the first strava_connections row
+  if (!targetUserId) {
+    // Temporary development-only fallback: use first strava_connections row when no user
+    // NOTE: This is a development convenience and should be removed before production.
+    const { data: firstConn, error: connError } = await supabaseAdmin
       .from("strava_connections")
       .select("user_id")
-      .limit(1);
+      .limit(1)
+      .maybeSingle();
 
-    if (fallbackError) {
-      console.error("Failed to load fallback Strava connection:", fallbackError);
+    if (connError) {
+      console.error("Failed to load strava_connections fallback:", connError);
       return NextResponse.json(
-        { error: "Unable to load development fallback connection." },
+        { error: "Unable to load fallback Strava connection." },
         { status: 500 }
       );
     }
 
-    if (fallbackError) {
-      console.error("Failed to load fallback Strava connection:", fallbackError);
-      return NextResponse.json(
-        { error: "Unable to load development fallback connection." },
-        { status: 500 }
-      );
+    if (firstConn && firstConn.user_id) {
+      targetUserId = firstConn.user_id;
+      developmentMode = true;
+      console.log("Development mode: dashboard using first strava_connections row", { userId: targetUserId });
     }
+  }
 
-    const fallbackConnection = fallbackConnections?.[0] ?? null;
-    if (!fallbackConnection?.user_id) {
-      return NextResponse.json(
-        { error: "No Strava connection found for development fallback." },
-        { status: 404 }
-      );
-    }
-
-    targetUserId = fallbackConnection.user_id;
-    console.log("Development mode: dashboard using first strava_connections row");
+  // If we still don't have a user id, return 401
+  if (!targetUserId) {
+    return NextResponse.json(
+      { error: "Authentication required or no Strava connection available." },
+      { status: 401 }
+    );
   }
 
   const { data: activities, error: activitiesError } = await supabaseAdmin

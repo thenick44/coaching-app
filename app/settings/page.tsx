@@ -13,6 +13,53 @@ function SettingsContent() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  async function syncActivities() {
+    const client = supabase;
+    if (!client) {
+      setError("Unable to sync activities: Supabase is not configured.");
+      return;
+    }
+
+    if (!profile?.id) {
+      setError("Unable to sync activities: user not signed in.");
+      return;
+    }
+
+    setSyncing(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const sessionResult = await client.auth.getSession();
+      const session = sessionResult.data?.session;
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        setError("No authenticated session found.");
+        return;
+      }
+
+      const response = await fetch("/api/strava/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: accessToken }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(result.error || "Failed to sync activities.");
+        return;
+      }
+
+      setSuccess(`Imported ${result.imported} activities`);
+    } catch (err) {
+      console.error(err);
+      setError("An unexpected error occurred while syncing activities.");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   useEffect(() => {
     // Handle query params for success/error messages
@@ -62,6 +109,44 @@ function SettingsContent() {
       } else {
         setProfile(null);
         setError(null);
+      }
+    }
+
+    async function syncActivities() {
+      if (!client || !profile?.id) {
+        setError("Unable to sync activities: user not signed in.");
+        return;
+      }
+      setSyncing(true);
+      setError(null);
+      setSuccess(null);
+      try {
+        const sessionResult = await client.auth.getSession();
+        const session = sessionResult.data?.session;
+        const accessToken = session?.access_token;
+        if (!accessToken) {
+          setError("No authenticated session found.");
+          return;
+        }
+
+        const response = await fetch("/api/strava/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ access_token: accessToken }),
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          setError(result.error || "Failed to sync activities.");
+          return;
+        }
+
+        setSuccess(`Imported ${result.imported} activities`);
+      } catch (err) {
+        console.error(err);
+        setError("An unexpected error occurred while syncing activities.");
+      } finally {
+        setSyncing(false);
       }
     }
 
@@ -126,13 +211,21 @@ function SettingsContent() {
               <p className="mt-4 text-xl font-semibold text-white">{email}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">Profile id: {profile?.id ?? "—"}</p>
               <p className="mt-1 text-sm leading-6 text-slate-300">Strava athlete id: {profile?.strava_athlete_id ?? "Not connected"}</p>
-              <div className="mt-6 flex gap-3">
+              <div className="mt-6 flex flex-wrap items-center gap-3">
                 <a
                   href="/api/strava/connect"
                   className="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 font-semibold text-white transition hover:bg-orange-700"
                 >
                   {profile?.strava_athlete_id ? "Reconnect Strava" : "Connect Strava"}
                 </a>
+                <button
+                  type="button"
+                  disabled={syncing}
+                  onClick={syncActivities}
+                  className="inline-flex items-center rounded-lg bg-slate-700 px-4 py-2 font-semibold text-white transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {syncing ? "Syncing..." : "Sync Activities"}
+                </button>
               </div>
             </>
           ) : (

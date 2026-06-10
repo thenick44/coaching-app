@@ -5,7 +5,7 @@ import { supabase } from "@/src/lib/supabaseClient";
 
 type DashboardActivity = {
   strava_activity_id: number;
-  activity_json: any;
+  raw_json: any;
 };
 
 type DashboardPayload = {
@@ -129,7 +129,7 @@ export default function DashboardPage() {
                     <li key={activity.strava_activity_id} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
                       <p className="font-semibold text-white">Activity {activity.strava_activity_id}</p>
                       <p className="mt-2 text-sm text-slate-400">
-                        {activity.activity_json?.name || "Unnamed activity"}
+                        {activity.raw_json?.name || "Unnamed activity"}
                       </p>
                     </li>
                   ))}

@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
       {
         user_id: user.id,
         strava_activity_id: activity.id,
-        activity_json: activity,
+        raw_json: activity,
       },
       { onConflict: "strava_activity_id" }
     );

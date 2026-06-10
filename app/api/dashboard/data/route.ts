@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
 
   const { data: activities, error: activitiesError } = await supabaseAdmin
     .from("activities")
-    .select("strava_activity_id, activity_json")
+    .select("strava_activity_id, raw_json")
     .eq("user_id", targetUserId)
     .order("strava_activity_id", { ascending: false });
 

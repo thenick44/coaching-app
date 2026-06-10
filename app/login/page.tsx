@@ -11,7 +11,10 @@ export default function LoginPage() {
     e.preventDefault();
     setStatus("sending");
     try {
-      const { error } = await supabase.auth.signInWithOtp({ email });
+      const base =
+        (process.env.NEXT_PUBLIC_APP_URL as string) || (typeof window !== "undefined" ? window.location.origin : undefined);
+      const redirectTo = base ? `${String(base).replace(/\/$/, "")}/auth/callback` : undefined;
+      const { error } = await supabase.auth.signInWithOtp({ email }, { emailRedirectTo: redirectTo });
       if (error) throw error;
       setStatus("sent");
     } catch (err) {

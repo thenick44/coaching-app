@@ -63,6 +63,13 @@ function formatActivityDate(dateString?: string) {
   }).format(date);
 }
 
+type SummaryTotals = {
+  distance: number;
+  elevation: number;
+  movingTime: number;
+  count: number;
+};
+
 function summarizeActivityMetrics(activities: DashboardActivity[], since: Date) {
   return activities.reduce(
     (summary, activity) => {
@@ -83,6 +90,83 @@ function summarizeActivityMetrics(activities: DashboardActivity[], since: Date) 
       movingTime: 0,
     }
   );
+}
+
+function summarizeActivityMetricsBetween(
+  activities: DashboardActivity[],
+  start: Date,
+  end: Date
+): SummaryTotals {
+  return activities.reduce(
+    (summary, activity) => {
+      const activityDate = activity.raw_json?.start_date
+        ? new Date(activity.raw_json.start_date)
+        : null;
+      if (!activityDate || Number.isNaN(activityDate.valueOf())) return summary;
+      if (activityDate < start || activityDate >= end) return summary;
+
+      summary.distance += activity.raw_json?.distance ?? 0;
+      summary.elevation += activity.raw_json?.total_elevation_gain ?? 0;
+      summary.movingTime += activity.raw_json?.moving_time ?? 0;
+      summary.count += 1;
+      return summary;
+    },
+    {
+      distance: 0,
+      elevation: 0,
+      movingTime: 0,
+      count: 0,
+    }
+  );
+}
+
+function getLastNDaysDistance(activities: DashboardActivity[], days: number, referenceDate: Date) {
+  const dailyTotals: Record<string, number> = {};
+  const result: Array<{ date: Date; distance: number }> = [];
+
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(referenceDate);
+    date.setHours(0, 0, 0, 0);
+    date.setDate(referenceDate.getDate() - i);
+    const key = date.toISOString().slice(0, 10);
+    dailyTotals[key] = 0;
+    result.push({ date: new Date(date), distance: 0 });
+  }
+
+  activities.forEach((activity) => {
+    const activityDate = activity.raw_json?.start_date
+      ? new Date(activity.raw_json.start_date)
+      : null;
+    if (!activityDate || Number.isNaN(activityDate.valueOf())) return;
+
+    const day = new Date(activityDate);
+    day.setHours(0, 0, 0, 0);
+    const key = day.toISOString().slice(0, 10);
+
+    if (key in dailyTotals) {
+      dailyTotals[key] += activity.raw_json?.distance ?? 0;
+    }
+  });
+
+  return result.map((entry) => ({
+    date: entry.date,
+    distance: dailyTotals[entry.date.toISOString().slice(0, 10)] ?? 0,
+  }));
+}
+
+function formatDifferenceValue(value: number) {
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value}`;
+}
+
+function formatDifferenceTime(seconds: number) {
+  const sign = seconds > 0 ? "+" : "";
+  const formatted = secondsToHoursMinutes(Math.abs(seconds));
+  return `${sign}${formatted}`;
+}
+
+function formatDailyChartLabel(date: Date) {
+  return new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
 }
 
 export default function DashboardPage() {
@@ -161,18 +245,39 @@ export default function DashboardPage() {
   });
 
   const now = new Date();
-  const sevenDaysAgo = new Date(now);
-  sevenDaysAgo.setDate(now.getDate() - 7);
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
 
-  const thirtyDaysAgo = new Date(now);
-  thirtyDaysAgo.setDate(now.getDate() - 30);
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 7);
+
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(today.getDate() - 30);
+
+  const currentWeekStart = new Date(today);
+  currentWeekStart.setDate(today.getDate() - today.getDay());
+
+  const lastWeekStart = new Date(currentWeekStart);
+  lastWeekStart.setDate(currentWeekStart.getDate() - 7);
+
+  const lastWeekEnd = new Date(currentWeekStart);
 
   const primary7Day = summarizeActivityMetrics(primaryActivities, sevenDaysAgo);
   const primary30Day = summarizeActivityMetrics(primaryActivities, thirtyDaysAgo);
   const secondary7Day = summarizeActivityMetrics(secondaryActivities, sevenDaysAgo);
   const secondary30Day = summarizeActivityMetrics(secondaryActivities, thirtyDaysAgo);
 
+  const currentWeekSummary = summarizeActivityMetricsBetween(primaryActivities, currentWeekStart, new Date(today.getTime() + 24 * 60 * 60 * 1000));
+  const lastWeekSummary = summarizeActivityMetricsBetween(primaryActivities, lastWeekStart, lastWeekEnd);
+  const diffSummary = {
+    distance: currentWeekSummary.distance - lastWeekSummary.distance,
+    elevation: currentWeekSummary.elevation - lastWeekSummary.elevation,
+    movingTime: currentWeekSummary.movingTime - lastWeekSummary.movingTime,
+    count: currentWeekSummary.count - lastWeekSummary.count,
+  };
+
   const recentActivities = sortedActivities.slice(0, 8);
+  const dailyDistances = getLastNDaysDistance(primaryActivities, 14, today);
 
   return (
     <main className="min-h-[calc(100vh-88px)] bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-950 px-6 py-10 text-white">
@@ -225,7 +330,69 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid gap-6">
+              <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-lg shadow-black/20 sm:p-8">
+                <p className="text-sm uppercase tracking-[0.28em] text-slate-400">Training summary</p>
+                <div className="mt-4 grid gap-4 sm:grid-cols-4">
+                  <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">This week</p>
+                    <p className="mt-3 text-sm text-slate-400">Distance</p>
+                    <p className="text-xl font-semibold text-white">{metersToMiles(currentWeekSummary.distance).toFixed(1)} mi</p>
+                    <p className="mt-3 text-sm text-slate-400">Elevation</p>
+                    <p className="text-xl font-semibold text-white">{Math.round(metersToFeet(currentWeekSummary.elevation))} ft</p>
+                    <p className="mt-3 text-sm text-slate-400">Time</p>
+                    <p className="text-xl font-semibold text-white">{secondsToHoursMinutes(currentWeekSummary.movingTime)}</p>
+                    <p className="mt-3 text-sm text-slate-400">Activities</p>
+                    <p className="text-xl font-semibold text-white">{currentWeekSummary.count}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Last week</p>
+                    <p className="mt-3 text-sm text-slate-400">Distance</p>
+                    <p className="text-xl font-semibold text-white">{metersToMiles(lastWeekSummary.distance).toFixed(1)} mi</p>
+                    <p className="mt-3 text-sm text-slate-400">Elevation</p>
+                    <p className="text-xl font-semibold text-white">{Math.round(metersToFeet(lastWeekSummary.elevation))} ft</p>
+                    <p className="mt-3 text-sm text-slate-400">Time</p>
+                    <p className="text-xl font-semibold text-white">{secondsToHoursMinutes(lastWeekSummary.movingTime)}</p>
+                    <p className="mt-3 text-sm text-slate-400">Activities</p>
+                    <p className="text-xl font-semibold text-white">{lastWeekSummary.count}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Difference</p>
+                    <p className="mt-3 text-sm text-slate-400">Distance</p>
+                    <p className="text-xl font-semibold text-white">{formatDifferenceValue(Number(metersToMiles(diffSummary.distance).toFixed(1)))} mi</p>
+                    <p className="mt-3 text-sm text-slate-400">Elevation</p>
+                    <p className="text-xl font-semibold text-white">{formatDifferenceValue(Math.round(metersToFeet(diffSummary.elevation)))} ft</p>
+                    <p className="mt-3 text-sm text-slate-400">Time</p>
+                    <p className="text-xl font-semibold text-white">{formatDifferenceTime(diffSummary.movingTime)}</p>
+                    <p className="mt-3 text-sm text-slate-400">Activities</p>
+                    <p className="text-xl font-semibold text-white">{formatDifferenceValue(diffSummary.count)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">14-day distance</p>
+                    <div className="mt-4 grid h-36 grid-cols-14 gap-1">
+                      {dailyDistances.map((item) => {
+                        const height = item.distance ? Math.min(100, (item.distance / 1609.34) * 4) : 2;
+                        return (
+                          <div key={item.date.toISOString()} className="relative flex items-end justify-center">
+                            <div
+                              className="w-full rounded-t-lg bg-cyan-500"
+                              style={{ height: `${Math.max(2, height)}%` }}
+                              title={`${formatActivityDate(item.date.toISOString())}: ${metersToMiles(item.distance).toFixed(1)} mi`}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 grid grid-cols-7 gap-1 text-[10px] text-slate-500">
+                      {dailyDistances.map((item) => (
+                        <span key={item.date.toISOString()} className="text-center">
+                          {formatDailyChartLabel(item.date)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
               <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-lg shadow-black/20 sm:p-8">
                 <p className="text-sm uppercase tracking-[0.28em] text-slate-400">Last activity</p>
                 {lastActivity ? (

@@ -17,7 +17,7 @@ export async function getOrCreateProfile(user: { id: string; email?: string | nu
 
   // Try to fetch existing profile
   const { data: existing, error: fetchError } = await supabase
-    .from<Profile>("profiles")
+    .from("profiles")
     .select("*")
     .eq("id", user.id)
     .maybeSingle();
@@ -31,7 +31,7 @@ export async function getOrCreateProfile(user: { id: string; email?: string | nu
 
   // Insert a new profile with id and email
   const { data: inserted, error: insertError } = await supabase
-    .from<Profile>("profiles")
+    .from("profiles")
     .insert({ id: user.id, email: user.email })
     .select()
     .maybeSingle();

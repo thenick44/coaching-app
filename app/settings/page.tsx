@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase, isSupabaseConfigured } from "@/src/lib/supabaseClient";
 import { getOrCreateProfile, Profile } from "@/src/lib/profile";
 
-export default function SettingsPage() {
+function SettingsContent() {
   const searchParams = useSearchParams();
   const mounted = useRef(true);
   const [email, setEmail] = useState<string | null>(null);
@@ -144,5 +144,13 @@ export default function SettingsPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-950" />}>
+      <SettingsContent />
+    </Suspense>
   );
 }

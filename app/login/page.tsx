@@ -31,7 +31,12 @@ export default function LoginPage() {
       const base =
         (process.env.NEXT_PUBLIC_APP_URL as string) || (typeof window !== "undefined" ? window.location.origin : undefined);
       const redirectTo = base ? `${String(base).replace(/\/$/, "")}/auth/callback` : undefined;
-      const { error } = await supabase.auth.signInWithOtp({ email }, { emailRedirectTo: redirectTo });
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: redirectTo,
+        },
+      });
       if (error) {
         const msg = (error as any)?.message ?? String(error);
         if (typeof msg === "string" && msg.toLowerCase().includes("email rate limit exceeded")) {

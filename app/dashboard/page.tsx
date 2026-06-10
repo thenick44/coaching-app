@@ -5,7 +5,17 @@ import { supabase } from "@/src/lib/supabaseClient";
 
 type DashboardActivity = {
   strava_activity_id: number;
-  raw_json: any;
+  raw_json: {
+    id?: number;
+    name?: string;
+    start_date?: string;
+    distance?: number;
+    total_elevation_gain?: number;
+    moving_time?: number;
+    type?: string;
+    sport_type?: string;
+    [key: string]: any;
+  };
 };
 
 type DashboardPayload = {
@@ -14,6 +24,66 @@ type DashboardPayload = {
   activityCount: number;
   activities: DashboardActivity[];
 };
+
+const PRIMARY_ACTIVITY_TYPES = new Set([
+  "Ride",
+  "VirtualRide",
+  "MountainBikeRide",
+  "GravelRide",
+  "Run",
+]);
+
+const SECONDARY_ACTIVITY_TYPES = new Set(["Walk", "WeightTraining"]);
+
+function metersToMiles(meters: number) {
+  return meters / 1609.34;
+}
+
+function metersToFeet(meters: number) {
+  return meters * 3.28084;
+}
+
+function secondsToHoursMinutes(seconds: number) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.round((seconds % 3600) / 60);
+  if (hours > 0) {
+    return `${hours}h ${minutes.toString().padStart(2, "0")}m`;
+  }
+  return `${minutes}m`;
+}
+
+function formatActivityDate(dateString?: string) {
+  if (!dateString) return "Unknown date";
+  const date = new Date(dateString);
+  if (Number.isNaN(date.valueOf())) return "Unknown date";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+function summarizeActivityMetrics(activities: DashboardActivity[], since: Date) {
+  return activities.reduce(
+    (summary, activity) => {
+      const activityDate = activity.raw_json?.start_date
+        ? new Date(activity.raw_json.start_date)
+        : null;
+      if (!activityDate || Number.isNaN(activityDate.valueOf())) return summary;
+      if (activityDate < since) return summary;
+
+      summary.distance += activity.raw_json?.distance ?? 0;
+      summary.elevation += activity.raw_json?.total_elevation_gain ?? 0;
+      summary.movingTime += activity.raw_json?.moving_time ?? 0;
+      return summary;
+    },
+    {
+      distance: 0,
+      elevation: 0,
+      movingTime: 0,
+    }
+  );
+}
 
 export default function DashboardPage() {
   const mounted = useRef(true);
@@ -70,6 +140,40 @@ export default function DashboardPage() {
     };
   }, []);
 
+  const activities = dashboardData?.activities ?? [];
+  const sortedActivities = [...activities].sort((a, b) => {
+    const aDate = new Date(a.raw_json?.start_date ?? 0).valueOf();
+    const bDate = new Date(b.raw_json?.start_date ?? 0).valueOf();
+    return bDate - aDate || b.strava_activity_id - a.strava_activity_id;
+  });
+
+  const lastActivity = sortedActivities[0];
+  const totalActivities = activities.length;
+
+  const primaryActivities = activities.filter((activity) => {
+    const activityType = activity.raw_json?.type ?? activity.raw_json?.sport_type ?? "";
+    return PRIMARY_ACTIVITY_TYPES.has(activityType);
+  });
+
+  const secondaryActivities = activities.filter((activity) => {
+    const activityType = activity.raw_json?.type ?? activity.raw_json?.sport_type ?? "";
+    return SECONDARY_ACTIVITY_TYPES.has(activityType);
+  });
+
+  const now = new Date();
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 7);
+
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(now.getDate() - 30);
+
+  const primary7Day = summarizeActivityMetrics(primaryActivities, sevenDaysAgo);
+  const primary30Day = summarizeActivityMetrics(primaryActivities, thirtyDaysAgo);
+  const secondary7Day = summarizeActivityMetrics(secondaryActivities, sevenDaysAgo);
+  const secondary30Day = summarizeActivityMetrics(secondaryActivities, thirtyDaysAgo);
+
+  const recentActivities = sortedActivities.slice(0, 8);
+
   return (
     <main className="min-h-[calc(100vh-88px)] bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-950 px-6 py-10 text-white">
       <div className="mx-auto flex min-h-full max-w-5xl flex-col justify-center gap-8 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-black/20 backdrop-blur-xl sm:p-10">
@@ -110,8 +214,8 @@ export default function DashboardPage() {
               <p className="text-sm uppercase tracking-[0.28em] text-slate-400">Summary</p>
               <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-3xl font-semibold text-white">{dashboardData?.activityCount ?? 0}</p>
-                  <p className="mt-1 text-sm text-slate-400">activities loaded</p>
+                  <p className="text-3xl font-semibold text-white">{totalActivities}</p>
+                  <p className="mt-1 text-sm text-slate-400">total activities</p>
                 </div>
                 <div className="rounded-2xl bg-slate-950/80 px-4 py-3 text-sm text-slate-300">
                   {isDevMode
@@ -121,16 +225,99 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-lg shadow-black/20 sm:p-8">
+                <p className="text-sm uppercase tracking-[0.28em] text-slate-400">Last activity</p>
+                {lastActivity ? (
+                  <div className="mt-4 space-y-3">
+                    <p className="text-xl font-semibold text-white">
+                      {lastActivity.raw_json?.name || "Unnamed activity"}
+                    </p>
+                    <p className="text-sm text-slate-400">{formatActivityDate(lastActivity.raw_json?.start_date)}</p>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                        <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Distance</p>
+                        <p className="mt-2 text-lg font-semibold text-white">
+                          {lastActivity.raw_json?.distance != null
+                            ? `${metersToMiles(lastActivity.raw_json.distance).toFixed(1)} mi`
+                            : "—"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                        <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Elevation</p>
+                        <p className="mt-2 text-lg font-semibold text-white">
+                          {lastActivity.raw_json?.total_elevation_gain != null
+                            ? `${Math.round(metersToFeet(lastActivity.raw_json.total_elevation_gain))} ft`
+                            : "—"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                        <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Moving time</p>
+                        <p className="mt-2 text-lg font-semibold text-white">
+                          {lastActivity.raw_json?.moving_time != null
+                            ? secondsToHoursMinutes(lastActivity.raw_json.moving_time)
+                            : "—"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-slate-400">No recent activity available.</p>
+                )}
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-lg shadow-black/20 sm:p-8">
+                <p className="text-sm uppercase tracking-[0.28em] text-slate-400">Recent activity metrics</p>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Last 7 days</p>
+                    <p className="mt-3 text-sm text-slate-400">Distance</p>
+                    <p className="text-xl font-semibold text-white">{metersToMiles(primary7Day.distance).toFixed(1)} mi</p>
+                    <p className="mt-3 text-sm text-slate-400">Elevation</p>
+                    <p className="text-xl font-semibold text-white">{Math.round(metersToFeet(primary7Day.elevation))} ft</p>
+                    <p className="mt-3 text-sm text-slate-400">Moving time</p>
+                    <p className="text-xl font-semibold text-white">{secondsToHoursMinutes(primary7Day.movingTime)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Last 30 days</p>
+                    <p className="mt-3 text-sm text-slate-400">Distance</p>
+                    <p className="text-xl font-semibold text-white">{metersToMiles(primary30Day.distance).toFixed(1)} mi</p>
+                    <p className="mt-3 text-sm text-slate-400">Elevation</p>
+                    <p className="text-xl font-semibold text-white">{Math.round(metersToFeet(primary30Day.elevation))} ft</p>
+                    <p className="mt-3 text-sm text-slate-400">Moving time</p>
+                    <p className="text-xl font-semibold text-white">{secondsToHoursMinutes(primary30Day.movingTime)}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-lg shadow-black/20 sm:p-8">
               <p className="text-sm uppercase tracking-[0.28em] text-slate-400">Recent activities</p>
-              {dashboardData?.activities?.length ? (
+              {recentActivities.length ? (
                 <ul className="mt-4 space-y-4">
-                  {dashboardData.activities.slice(0, 5).map((activity) => (
+                  {recentActivities.map((activity) => (
                     <li key={activity.strava_activity_id} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
-                      <p className="font-semibold text-white">Activity {activity.strava_activity_id}</p>
-                      <p className="mt-2 text-sm text-slate-400">
-                        {activity.raw_json?.name || "Unnamed activity"}
-                      </p>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="font-semibold text-white">{activity.raw_json?.name || "Unnamed activity"}</p>
+                          <p className="text-sm text-slate-400">{formatActivityDate(activity.raw_json?.start_date)}</p>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-3">
+                          <div className="rounded-2xl bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-500">
+                            {activity.raw_json?.type || activity.raw_json?.sport_type || "Unknown"}
+                          </div>
+                          <div className="rounded-2xl bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-500">
+                            {activity.raw_json?.distance != null
+                              ? `${metersToMiles(activity.raw_json.distance).toFixed(1)} mi`
+                              : "—"}
+                          </div>
+                          <div className="rounded-2xl bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-500">
+                            {activity.raw_json?.moving_time != null
+                              ? secondsToHoursMinutes(activity.raw_json.moving_time)
+                              : "—"}
+                          </div>
+                        </div>
+                      </div>
                     </li>
                   ))}
                 </ul>

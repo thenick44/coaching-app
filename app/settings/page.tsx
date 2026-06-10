@@ -19,8 +19,10 @@ function SettingsContent() {
     const stravaConnected = searchParams.get("strava");
     const errorParam = searchParams.get("error");
 
-    if (stravaConnected === "connected") {
-      setSuccess("Strava connected successfully!");
+    if (stravaConnected === "connected" || stravaConnected === "connected_dev") {
+      setSuccess(
+        stravaConnected === "connected" ? "Strava connected successfully!" : "Strava connected (dev)"
+      );
       // Clear success message after 5 seconds
       const timer = setTimeout(() => setSuccess(null), 5000);
       return () => clearTimeout(timer);

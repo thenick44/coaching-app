@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { supabase } from "@/src/lib/supabaseClient";
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
@@ -48,23 +49,41 @@ export async function GET(request: NextRequest) {
 
     const tokenData = await tokenResponse.json();
 
-    // Log athlete info and token response
+    // Redacted server log for success (no tokens)
     console.log("Strava OAuth Success:", {
       athlete_id: tokenData.athlete?.id,
-      athlete_name: `${tokenData.athlete?.firstname} ${tokenData.athlete?.lastname}`,
-      token_response: {
-        access_token: tokenData.access_token ? "[REDACTED]" : undefined,
-        refresh_token: tokenData.refresh_token ? "[REDACTED]" : undefined,
-        expires_at: tokenData.expires_at,
-        token_type: tokenData.token_type,
-      },
+      athlete_name: tokenData.athlete ? `${tokenData.athlete?.firstname} ${tokenData.athlete?.lastname}` : undefined,
     });
 
-    // TODO: Store tokens in the database when ready
-    // For now, just log and redirect
-    return NextResponse.redirect(
-      new URL("/settings?strava=connected", request.url)
-    );
+    const athleteId = tokenData.athlete?.id ?? null;
+
+    try {
+      if (supabase && athleteId) {
+        // Try to determine the signed-in user on the server via the anon client.
+        // This may return null if no user session is present; in that case redirect with dev flag.
+        const { data: userData } = await supabase.auth.getUser();
+        const user = userData?.user ?? null;
+
+        if (user) {
+          const { error: updateError } = await supabase
+            .from("profiles")
+            .update({ strava_athlete_id: athleteId })
+            .eq("id", user.id);
+
+          if (updateError) {
+            console.error("Failed to update profile with Strava athlete id:", updateError.message);
+          }
+
+          return NextResponse.redirect(new URL("/settings?strava=connected", request.url));
+        }
+      }
+
+      // If we reach here, no signed-in user was found or supabase isn't configured
+      return NextResponse.redirect(new URL("/settings?strava=connected_dev", request.url));
+    } catch (err) {
+      console.error("Strava post-exchange handling error:", err);
+      return NextResponse.redirect(new URL("/settings?error=oauth_error", request.url));
+    }
   } catch (error) {
     console.error("Strava OAuth error:", error);
     return NextResponse.redirect(

@@ -61,6 +61,39 @@ function SettingsContent() {
     }
   }
 
+  async function syncActivitiesDev() {
+    const client = supabase;
+    if (!client) {
+      setError("Unable to sync activities: Supabase is not configured.");
+      return;
+    }
+
+    setSyncing(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch("/api/strava/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(result.error || "Failed to sync activities.");
+        return;
+      }
+
+      setSuccess(`Imported ${result.imported} activities`);
+    } catch (err) {
+      console.error(err);
+      setError("An unexpected error occurred while syncing activities.");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   useEffect(() => {
     // Handle query params for success/error messages
     const stravaConnected = searchParams.get("strava");
@@ -238,6 +271,16 @@ function SettingsContent() {
                 >
                   Connect Strava
                 </a>
+                {process.env.NODE_ENV !== "production" && (
+                  <button
+                    type="button"
+                    disabled={syncing}
+                    onClick={syncActivitiesDev}
+                    className="inline-flex items-center rounded-lg bg-slate-700 px-4 py-2 font-semibold text-white transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {syncing ? "Syncing..." : "Dev: Sync Strava Activities"}
+                  </button>
+                )}
               </div>
             </>
           )}

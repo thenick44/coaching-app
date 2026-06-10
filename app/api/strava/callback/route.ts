@@ -68,50 +68,40 @@ export async function GET(request: NextRequest) {
 
     try {
       const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-      const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserByEmail(
-        "nick.fernandez5@gmail.com"
-      );
-
-      if (userError) {
-        console.error("Error looking up Supabase user by email:", userError.message);
-      }
-
-      let user = userData?.user ?? null;
+      let user: { id: string } | null = null;
       let developmentFallback = false;
 
-      if (!user) {
-        const isDevelopment = process.env.NODE_ENV !== "production";
-        if (!isDevelopment) {
-          console.error(
-            "No authenticated user found and development mode is disabled. Cannot store Strava connection."
-          );
-          return NextResponse.redirect(new URL("/settings?error=oauth_error", request.url));
-        }
-
-        console.log(
-          "Development mode active: no authenticated user found. Querying public.profiles for fallback user_id."
+      const isDevelopment = process.env.NODE_ENV !== "production";
+      if (!isDevelopment) {
+        console.error(
+          "No authenticated user found and development mode is disabled. Cannot store Strava connection."
         );
-        developmentFallback = true;
+        return NextResponse.redirect(new URL("/settings?error=oauth_error", request.url));
+      }
 
-        const { data: fallbackProfile, error: profileError } = await supabaseAdmin
-          .from("profiles")
-          .select("id")
-          .limit(1)
-          .maybeSingle();
+      console.log(
+        "Development mode active: query public.profiles for fallback user_id when no authenticated user exists."
+      );
+      developmentFallback = true;
 
-        if (profileError) {
-          console.error("Error querying public.profiles for development fallback:", profileError.message);
-        }
+      const { data: fallbackProfile, error: profileError } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
 
-        if (fallbackProfile?.id) {
-          user = { id: fallbackProfile.id } as { id: string };
-          console.log("Development fallback user_id selected from public.profiles:", fallbackProfile.id);
-        } else {
-          console.error(
-            "Development mode active but no profile row was found in public.profiles. Cannot store Strava connection."
-          );
-          return NextResponse.redirect(new URL("/settings?error=oauth_error", request.url));
-        }
+      if (profileError) {
+        console.error("Error querying public.profiles for development fallback:", profileError.message);
+      }
+
+      if (fallbackProfile?.id) {
+        user = { id: fallbackProfile.id };
+        console.log("Development fallback user_id selected from public.profiles:", fallbackProfile.id);
+      } else {
+        console.error(
+          "Development mode active but no profile row was found in public.profiles. Cannot store Strava connection."
+        );
+        return NextResponse.redirect(new URL("/settings?error=oauth_error", request.url));
       }
 
       if (!user || !athleteId) {
@@ -130,7 +120,7 @@ export async function GET(request: NextRequest) {
             scope: tokenData.scope,
             updated_at: new Date().toISOString(),
           },
-          { onConflict: ["user_id"] }
+          { onConflict: "user_id" }
         );
 
       if (developmentFallback) {

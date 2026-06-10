@@ -28,6 +28,12 @@ export default function LoginPage() {
     setStatus("sending");
     setErrorMessage(null);
     try {
+      if (!supabase) {
+        setErrorMessage("Supabase is not configured.");
+        setStatus("error");
+        return;
+      }
+
       const base =
         (process.env.NEXT_PUBLIC_APP_URL as string) || (typeof window !== "undefined" ? window.location.origin : undefined);
       const redirectTo = base ? `${String(base).replace(/\/$/, "")}/auth/callback` : undefined;

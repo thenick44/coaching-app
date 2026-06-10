@@ -12,7 +12,13 @@ export default function Protected({ children }: { children: ReactNode }) {
     let mounted = true;
 
     async function check() {
-      const { data } = await supabase.auth.getSession();
+      const client = supabase;
+      if (!client) {
+        router.push("/login");
+        return;
+      }
+
+      const { data } = await client.auth.getSession();
       const session = data?.session;
       if (!mounted) return;
       if (!session) {
@@ -24,13 +30,18 @@ export default function Protected({ children }: { children: ReactNode }) {
 
     check();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) router.push("/login");
-    });
+    let unsubscribe: (() => void) | null = null;
+    const client = supabase;
+    if (client) {
+      const { data: sub } = client.auth.onAuthStateChange((_event, session) => {
+        if (!session) router.push("/login");
+      });
+      unsubscribe = () => sub.subscription.unsubscribe();
+    }
 
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
+      unsubscribe?.();
     };
   }, [router]);
 

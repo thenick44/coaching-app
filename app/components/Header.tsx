@@ -18,9 +18,12 @@ export default function Header() {
 
   useEffect(() => {
     let mounted = true;
+    let unsubscribe: (() => void) | null = null;
 
     async function load() {
-      const { data } = await supabase.auth.getSession();
+      const client = supabase;
+      if (!client) return;
+      const { data } = await client.auth.getSession();
       const session = data?.session;
       if (!mounted) return;
       setUserEmail(session?.user?.email ?? null);
@@ -28,18 +31,25 @@ export default function Header() {
 
     load();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserEmail(session?.user?.email ?? null);
-    });
+    const client = supabase;
+    if (client) {
+      const { data: sub } = client.auth.onAuthStateChange((_event, session) => {
+        setUserEmail(session?.user?.email ?? null);
+      });
+      unsubscribe = () => sub.subscription.unsubscribe();
+    }
 
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
+      unsubscribe?.();
     };
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    const client = supabase;
+    if (client) {
+      await client.auth.signOut();
+    }
     router.push("/");
   };
 

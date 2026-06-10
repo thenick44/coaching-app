@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase, isSupabaseConfigured } from "@/src/lib/supabaseClient";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOrCreateProfile, Profile } from "@/src/lib/profile";
 
 function SettingsContent() {
@@ -37,8 +38,16 @@ function SettingsContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    async function loadUser() {
-      const { data } = await supabase.auth.getUser();
+    const client = supabase;
+    if (!client) {
+      setEmail(null);
+      setProfile(null);
+      setError("Supabase is not configured.");
+      return;
+    }
+
+    async function loadUser(c: SupabaseClient) {
+      const { data } = await c.auth.getUser();
       if (!mounted) return;
       const user = data?.user ?? null;
       setEmail(user?.email ?? null);
@@ -54,9 +63,9 @@ function SettingsContent() {
       }
     }
 
-    loadUser();
+    loadUser(client);
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: sub } = client.auth.onAuthStateChange(async (_event, session) => {
       const user = session?.user ?? null;
       setEmail(user?.email ?? null);
       if (user) {

@@ -15,8 +15,13 @@ export type ProfileResult = {
 export async function getOrCreateProfile(user: { id: string; email?: string | null }): Promise<ProfileResult> {
   if (!user?.id) return { profile: null, error: null };
 
+  const client = supabase;
+  if (!client) {
+    return { profile: null, error: "Supabase is not configured." };
+  }
+
   // Try to fetch existing profile
-  const { data: existing, error: fetchError } = await supabase
+  const { data: existing, error: fetchError } = await client
     .from("profiles")
     .select("*")
     .eq("id", user.id)
@@ -30,7 +35,7 @@ export async function getOrCreateProfile(user: { id: string; email?: string | nu
   if (existing) return { profile: existing, error: null };
 
   // Insert a new profile with id and email
-  const { data: inserted, error: insertError } = await supabase
+  const { data: inserted, error: insertError } = await client
     .from("profiles")
     .insert({ id: user.id, email: user.email })
     .select()

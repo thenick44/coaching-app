@@ -70,6 +70,29 @@ export function calculateEffortScore(raw: ActivityRecord["raw_json"] | undefined
   return Math.round(distanceMiles + elevationFeet / 100 + movingTimeMinutes * 0.5);
 }
 
+export type EffortLevel = "low" | "medium" | "high";
+
+/**
+ * Average effort score across a set of activities, used as the baseline for
+ * ranking an individual activity's effort as low/medium/high.
+ */
+export function calculateAverageEffort(activities: ActivityRecord[]): number {
+  if (!activities.length) return 0;
+  const total = activities.reduce((sum, activity) => sum + calculateEffortScore(activity.raw_json), 0);
+  return total / activities.length;
+}
+
+/**
+ * Ranks an effort score relative to the average: more than 25% above average
+ * is "high", more than 25% below is "low", otherwise "medium".
+ */
+export function getEffortLevel(effort: number, averageEffort: number): EffortLevel {
+  if (averageEffort <= 0) return "medium";
+  if (effort >= averageEffort * 1.25) return "high";
+  if (effort <= averageEffort * 0.75) return "low";
+  return "medium";
+}
+
 export function getWeekStart(date: Date) {
   const weekStart = new Date(date);
   weekStart.setHours(0, 0, 0, 0);

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
-import { calculateEffortScore } from "@/src/lib/activityMetrics";
+import { calculateAverageEffort, calculateEffortScore, getEffortLevel, type EffortLevel } from "@/src/lib/activityMetrics";
 import Protected from "../components/Protected";
 import StravaSyncButton from "../components/StravaSyncButton";
 import TrendLineChart from "../components/TrendLineChart";
@@ -84,6 +84,12 @@ function getPositiveNumber(raw: DashboardActivity["raw_json"] | undefined, key: 
   const value = raw?.[key];
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
 }
+
+const EFFORT_PILL_CLASSES: Record<EffortLevel, string> = {
+  low: "border-emerald-400/20 bg-emerald-400/10 text-emerald-300",
+  medium: "border-amber-400/20 bg-amber-400/10 text-amber-300",
+  high: "border-rose-400/20 bg-rose-400/10 text-rose-300",
+};
 
 function ChevronIcon({ className = "" }: { className?: string }) {
   return (
@@ -369,6 +375,7 @@ export default function DashboardPage() {
     count: currentWeekSummary.count - lastWeekSummary.count,
   };
 
+  const averageEffort = calculateAverageEffort(activities);
   const recentActivities = sortedActivities.slice(0, visibleActivityCount);
   const hasMoreActivities = visibleActivityCount < sortedActivities.length;
   const dailyDistances = getLastNDaysDistance(primaryActivities, 14, today);
@@ -573,6 +580,9 @@ export default function DashboardPage() {
 
                       const hasDetails = elevationFeet != null || avgSpeed != null || avgHeartrate != null || avgWatts != null || calories != null;
 
+                      const effortScore = calculateEffortScore(activity.raw_json);
+                      const effortLevel = getEffortLevel(effortScore, averageEffort);
+
                       return (
                         <li key={activity.strava_activity_id} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
                           <button
@@ -598,8 +608,11 @@ export default function DashboardPage() {
                                   ? secondsToHoursMinutes(activity.raw_json.moving_time)
                                   : "—"}
                               </span>
-                              <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-xs font-medium text-amber-300">
-                                Effort {calculateEffortScore(activity.raw_json)}
+                              <span
+                                className={`rounded-full border px-3 py-1 text-xs font-medium ${EFFORT_PILL_CLASSES[effortLevel]}`}
+                                title={`${effortLevel[0].toUpperCase()}${effortLevel.slice(1)} effort (avg ${Math.round(averageEffort)})`}
+                              >
+                                Effort {effortScore}
                               </span>
                               <ChevronIcon className={`shrink-0 text-slate-500 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                             </div>

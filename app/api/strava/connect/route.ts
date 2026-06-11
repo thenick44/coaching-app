@@ -3,7 +3,7 @@ import { getBearerToken, resolveTargetUserId } from "@/src/lib/serverAuth";
 
 export async function GET(request: NextRequest) {
   const clientId = process.env.STRAVA_CLIENT_ID;
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://coaching-app-hazel-six.vercel.app";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://trainingsignals.cc";
   const redirectUri = `${siteUrl}/api/strava/callback`;
   const scopes = "read,activity:read_all";
 

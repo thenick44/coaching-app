@@ -44,7 +44,7 @@ export default function LoginPage() {
         },
       });
       if (error) {
-        const msg = (error as any)?.message ?? String(error);
+        const msg = error.message ?? String(error);
         if (typeof msg === "string" && msg.toLowerCase().includes("email rate limit exceeded")) {
           setErrorMessage("Too many sign-in emails were requested. Please wait a few minutes before trying again.");
         } else {
@@ -57,7 +57,7 @@ export default function LoginPage() {
       setCooldown(60);
     } catch (err) {
       console.error(err);
-      const msg = (err as any)?.message ?? String(err);
+      const msg = err instanceof Error ? err.message : String(err);
       if (typeof msg === "string" && msg.toLowerCase().includes("email rate limit exceeded")) {
         setErrorMessage("Too many sign-in emails were requested. Please wait a few minutes before trying again.");
       } else {

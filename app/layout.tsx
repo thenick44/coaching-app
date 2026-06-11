@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import Header from "./components/Header";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -18,13 +17,6 @@ export const metadata: Metadata = {
   title: "Nick's Coaching App",
   description: "Your personal cycling and endurance coach",
 };
-
-const navItems = [
-  { href: "/", label: "Home" },
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/coach", label: "Coach" },
-  { href: "/settings", label: "Settings" },
-];
 
 export default function RootLayout({
   children,

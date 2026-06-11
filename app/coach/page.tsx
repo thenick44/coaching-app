@@ -146,7 +146,6 @@ export default function CoachPage() {
   const mounted = useRef(true);
   const [loading, setLoading] = useState(true);
   const [reports, setReports] = useState<CoachingReport[]>([]);
-  const [isDevMode, setIsDevMode] = useState(false);
   const [signedIn, setSignedIn] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -182,11 +181,10 @@ export default function CoachPage() {
       if (!mounted.current) return;
 
       if (!response.ok) {
-        setError((payload as any)?.error || "Failed to load coaching reports.");
+        setError((payload as { error?: string } | null)?.error || "Failed to load coaching reports.");
         setReports([]);
       } else {
         setReports((payload as CoachingReportPayload).reports ?? []);
-        setIsDevMode((payload as CoachingReportPayload).developmentMode ?? false);
       }
 
       setLoading(false);
@@ -227,12 +225,12 @@ export default function CoachPage() {
       | null;
 
     if (!response.ok || !payload) {
-      setError((payload as any)?.error || "Failed to generate weekly report.");
+      setError(payload?.error || "Failed to generate weekly report.");
       setCreating(false);
       return;
     }
 
-    const newReport = (payload as any).report as CoachingReport | undefined;
+    const newReport = payload.report;
     if (newReport) {
       setReports((prev) => [newReport, ...prev]);
       setSuccess("Weekly coaching report generated successfully.");

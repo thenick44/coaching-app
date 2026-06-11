@@ -4,7 +4,7 @@ export type Profile = {
   id: string;
   email?: string | null;
   strava_athlete_id?: number | null;
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 export type ProfileResult = {

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdmin, isServerConfigured, resolveTargetUserId } from "@/src/lib/serverAuth";
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
-  const scope = request.nextUrl.searchParams.get("scope");
+  const state = request.nextUrl.searchParams.get("state");
 
   if (!code) {
     return NextResponse.redirect(
@@ -13,8 +13,6 @@ export async function GET(request: NextRequest) {
 
   const clientId = process.env.STRAVA_CLIENT_ID;
   const clientSecret = process.env.STRAVA_CLIENT_SECRET;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   if (!clientId || !clientSecret) {
     console.error("Missing STRAVA_CLIENT_ID or STRAVA_CLIENT_SECRET");
@@ -23,7 +21,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!isServerConfigured()) {
     console.error("Missing SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL");
     return NextResponse.redirect(
       new URL("/settings?error=config_error", request.url)
@@ -65,68 +63,34 @@ export async function GET(request: NextRequest) {
     });
 
     const athleteId = tokenData.athlete?.id ?? null;
+    const userId = state || (await resolveTargetUserId());
 
-    try {
-      const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-      let userId: string | null = null;
-      let developmentFallback = false;
-
-      // Temporary development-only logic: no authenticated browser session required.
-      console.log("Development mode: using first profile row for Strava connection");
-      developmentFallback = true;
-
-      const { data: fallbackProfile, error: profileError } = await supabaseAdmin
-        .from("profiles")
-        .select("id")
-        .limit(1)
-        .maybeSingle();
-
-      if (profileError) {
-        console.error("Error querying profiles for development fallback:", profileError.message);
-      }
-
-      if (fallbackProfile?.id) {
-        userId = fallbackProfile.id;
-        console.log("Development mode: using first profile row for Strava connection", fallbackProfile.id);
-      } else {
-        console.error(
-          "Development mode active but no profile row was found in profiles. Cannot store Strava connection."
-        );
-        return NextResponse.redirect(new URL("/settings?error=oauth_error", request.url));
-      }
-
-      if (!userId || !athleteId) {
-        return NextResponse.redirect(new URL("/settings?strava=connected_dev", request.url));
-      }
-
-      const { error: upsertError } = await supabaseAdmin
-        .from("strava_connections")
-        .upsert(
-          {
-            user_id: userId,
-            athlete_id: athleteId,
-            access_token: tokenData.access_token,
-            refresh_token: tokenData.refresh_token,
-            expires_at: tokenData.expires_at,
-            scope: tokenData.scope,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" }
-        );
-
-      if (developmentFallback) {
-        console.log("Strava connection saved using development fallback user_id:", userId);
-      }
-
-      if (upsertError) {
-        console.error("Failed to upsert strava_connections:", upsertError.message);
-      }
-
-      return NextResponse.redirect(new URL("/settings?strava=connected", request.url));
-    } catch (err) {
-      console.error("Strava post-exchange handling error:", err);
+    if (!userId || !athleteId) {
       return NextResponse.redirect(new URL("/settings?error=oauth_error", request.url));
     }
+
+    const supabaseAdmin = createSupabaseAdmin()!;
+    const { error: upsertError } = await supabaseAdmin
+      .from("strava_connections")
+      .upsert(
+        {
+          user_id: userId,
+          athlete_id: athleteId,
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token,
+          expires_at: tokenData.expires_at,
+          scope: tokenData.scope,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
+
+    if (upsertError) {
+      console.error("Failed to upsert strava_connections:", upsertError.message);
+      return NextResponse.redirect(new URL("/settings?error=oauth_error", request.url));
+    }
+
+    return NextResponse.redirect(new URL("/settings?strava=connected", request.url));
   } catch (error) {
     console.error("Strava OAuth error:", error);
     return NextResponse.redirect(

@@ -7,7 +7,7 @@ export type ActivityRecord = {
     sport_type?: string;
     type?: string;
     name?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 };
 

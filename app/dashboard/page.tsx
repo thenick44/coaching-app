@@ -14,7 +14,7 @@ type DashboardActivity = {
     moving_time?: number;
     type?: string;
     sport_type?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 };
 
@@ -32,8 +32,6 @@ const PRIMARY_ACTIVITY_TYPES = new Set([
   "GravelRide",
   "Run",
 ]);
-
-const SECONDARY_ACTIVITY_TYPES = new Set(["Walk", "WeightTraining"]);
 
 function metersToMiles(meters: number) {
   return meters / 1609.34;
@@ -207,7 +205,7 @@ export default function DashboardPage() {
       if (!mounted.current) return;
 
       if (!response.ok) {
-        setError((payload as any)?.error || "Failed to load dashboard data.");
+        setError((payload as { error?: string } | null)?.error || "Failed to load dashboard data.");
         setDashboardData(null);
       } else {
         setDashboardData(payload as DashboardPayload);
@@ -239,11 +237,6 @@ export default function DashboardPage() {
     return PRIMARY_ACTIVITY_TYPES.has(activityType);
   });
 
-  const secondaryActivities = activities.filter((activity) => {
-    const activityType = activity.raw_json?.type ?? activity.raw_json?.sport_type ?? "";
-    return SECONDARY_ACTIVITY_TYPES.has(activityType);
-  });
-
   const now = new Date();
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
@@ -264,8 +257,6 @@ export default function DashboardPage() {
 
   const primary7Day = summarizeActivityMetrics(primaryActivities, sevenDaysAgo);
   const primary30Day = summarizeActivityMetrics(primaryActivities, thirtyDaysAgo);
-  const secondary7Day = summarizeActivityMetrics(secondaryActivities, sevenDaysAgo);
-  const secondary30Day = summarizeActivityMetrics(secondaryActivities, thirtyDaysAgo);
 
   const currentWeekSummary = summarizeActivityMetricsBetween(primaryActivities, currentWeekStart, new Date(today.getTime() + 24 * 60 * 60 * 1000));
   const lastWeekSummary = summarizeActivityMetricsBetween(primaryActivities, lastWeekStart, lastWeekEnd);

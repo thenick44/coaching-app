@@ -1,22 +1,28 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
+import { createSupabaseAdmin, getBearerToken, isServerConfigured, resolveTargetUserId } from "@/src/lib/serverAuth";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-export async function GET() {
-  if (!supabaseUrl || !serviceRoleKey) {
+export async function GET(request: NextRequest) {
+  if (!isServerConfigured()) {
     return NextResponse.json(
       { has_connection: false, error: "Strava status is not configured." },
       { status: 500 }
     );
   }
 
-  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+  const targetUserId = await resolveTargetUserId(getBearerToken(request));
+
+  if (!targetUserId) {
+    return NextResponse.json(
+      { has_connection: false, error: "Unable to resolve user." },
+      { status: 401 }
+    );
+  }
+
+  const supabaseAdmin = createSupabaseAdmin()!;
   const { data, error } = await supabaseAdmin
     .from("strava_connections")
     .select("id")
-    .limit(1)
+    .eq("user_id", targetUserId)
     .maybeSingle();
 
   if (error) {

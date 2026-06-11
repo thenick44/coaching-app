@@ -10,7 +10,7 @@ type DashboardActivity = {
     distance?: number;
     total_elevation_gain?: number;
     moving_time?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 };
 
@@ -35,15 +35,6 @@ function metersToMiles(meters: number) {
 
 function metersToFeet(meters: number) {
   return meters * 3.28084;
-}
-
-function secondsToHoursMinutes(seconds: number) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.round((seconds % 3600) / 60);
-  if (hours > 0) {
-    return `${hours}h ${minutes.toString().padStart(2, "0")}m`;
-  }
-  return `${minutes}m`;
 }
 
 function getWeekStart(date: Date) {
@@ -226,7 +217,6 @@ function FitnessTrendChart({
 export default function FitnessTrendsPage() {
   const mounted = useRef(true);
   const [loading, setLoading] = useState(true);
-  const [isDevMode, setIsDevMode] = useState(false);
   const [signedIn, setSignedIn] = useState(true);
   const [dashboardData, setDashboardData] = useState<DashboardPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -261,11 +251,10 @@ export default function FitnessTrendsPage() {
       if (!mounted.current) return;
 
       if (!response.ok) {
-        setError((payload as any)?.error || "Failed to load dashboard data.");
+        setError((payload as { error?: string } | null)?.error || "Failed to load dashboard data.");
         setDashboardData(null);
       } else {
         setDashboardData(payload as DashboardPayload);
-        setIsDevMode((payload as DashboardPayload).developmentMode ?? false);
       }
 
       setLoading(false);

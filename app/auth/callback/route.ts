@@ -13,13 +13,13 @@ export async function GET(req: Request) {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
       return NextResponse.redirect(new URL("/login?error=auth_callback_failed", url));
     }
 
     return NextResponse.redirect(new URL("/dashboard", url));
-  } catch (err) {
+  } catch {
     return NextResponse.redirect(new URL("/login?error=auth_callback_failed", req.url));
   }
 }

@@ -6,39 +6,45 @@ import { supabase, isSupabaseConfigured } from "@/src/lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOrCreateProfile, Profile } from "@/src/lib/profile";
 
+const ERROR_MESSAGES: Record<string, string> = {
+  no_code: "Failed to connect to Strava: No authorization code received",
+  config_error: "Strava is not properly configured",
+  token_exchange_failed: "Failed to exchange authorization code for token",
+  oauth_error: "An error occurred during Strava authentication",
+};
+
 function SettingsContent() {
   const searchParams = useSearchParams();
   const mounted = useRef(true);
   const [email, setEmail] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [hasStravaConnection, setHasStravaConnection] = useState(false);
 
   const stravaConnected = searchParams.get("strava");
   const stravaConnectedParam =
     stravaConnected === "connected" || stravaConnected === "connected_dev";
-  const devMode = process.env.NODE_ENV !== "production";
-  const showSyncButton = stravaConnectedParam || hasStravaConnection || devMode;
+  const showSyncButton = stravaConnectedParam || hasStravaConnection;
 
-  const stravaStatus = profile?.strava_athlete_id
-    ? `Connected (athlete id ${profile.strava_athlete_id})`
-    : stravaConnectedParam
-    ? "Connected"
-    : hasStravaConnection
-    ? "Connected"
-    : "Not connected";
+  const [success, setSuccess] = useState<string | null>(() => {
+    if (stravaConnectedParam) {
+      return stravaConnected === "connected" ? "Strava connected successfully!" : "Strava connected (dev)";
+    }
+    return null;
+  });
+
+  const [error, setError] = useState<string | null>(() => {
+    const errorParam = searchParams.get("error");
+    if (errorParam) {
+      return ERROR_MESSAGES[errorParam] || "An error occurred";
+    }
+    return supabase ? null : "Supabase is not configured.";
+  });
 
   async function syncActivities() {
     const client = supabase;
     if (!client) {
       setError("Unable to sync activities: Supabase is not configured.");
-      return;
-    }
-
-    if (!profile?.id) {
-      setError("Unable to sync activities: user not signed in.");
       return;
     }
 
@@ -48,17 +54,12 @@ function SettingsContent() {
 
     try {
       const sessionResult = await client.auth.getSession();
-      const session = sessionResult.data?.session;
-      const accessToken = session?.access_token;
-      if (!accessToken) {
-        setError("No authenticated session found.");
-        return;
-      }
+      const accessToken = sessionResult.data?.session?.access_token;
 
       const response = await fetch("/api/strava/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ access_token: accessToken }),
+        body: JSON.stringify({ access_token: accessToken ?? null }),
       });
 
       const result = await response.json().catch(() => ({}));
@@ -76,88 +77,40 @@ function SettingsContent() {
     }
   }
 
-  async function syncActivitiesDev() {
+  useEffect(() => {
+    if (!success) return;
+    const timer = setTimeout(() => setSuccess(null), 5000);
+    return () => clearTimeout(timer);
+  }, [success]);
+
+  useEffect(() => {
     const client = supabase;
     if (!client) {
-      setError("Unable to sync activities: Supabase is not configured.");
       return;
     }
 
-    setSyncing(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const response = await fetch("/api/strava/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setError(result.error || "Failed to sync activities.");
-        return;
+    async function loadStravaConnectionStatus(accessToken?: string) {
+      try {
+        const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined;
+        const response = await fetch("/api/strava/status", { headers });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (mounted.current) {
+          setHasStravaConnection(Boolean(data?.has_connection));
+        }
+      } catch (err) {
+        console.error("Failed to load Strava connection status:", err);
       }
-
-      setSuccess(`Imported ${result.imported} activities`);
-    } catch (err) {
-      console.error(err);
-      setError("An unexpected error occurred while syncing activities.");
-    } finally {
-      setSyncing(false);
-    }
-  }
-
-  async function handleSyncActivities() {
-    if (profile?.id) {
-      await syncActivities();
-    } else {
-      await syncActivitiesDev();
-    }
-  }
-
-  useEffect(() => {
-    // Handle query params for success/error messages
-    const errorParam = searchParams.get("error");
-
-    if (stravaConnectedParam) {
-      setSuccess(
-        stravaConnected === "connected" ? "Strava connected successfully!" : "Strava connected (dev)"
-      );
-      // Clear success message after 5 seconds
-      const timer = setTimeout(() => setSuccess(null), 5000);
-      return () => clearTimeout(timer);
-    }
-
-    if (errorParam) {
-      const errorMessages: Record<string, string> = {
-        no_code: "Failed to connect to Strava: No authorization code received",
-        config_error: "Strava is not properly configured",
-        token_exchange_failed: "Failed to exchange authorization code for token",
-        oauth_error: "An error occurred during Strava authentication",
-      };
-      setError(errorMessages[errorParam] || "An error occurred");
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
-    const client = supabase;
-    if (!client) {
-      setEmail(null);
-      setProfile(null);
-      setError("Supabase is not configured.");
-      return;
     }
 
     async function loadUser(c: SupabaseClient) {
       const { data } = await c.auth.getUser();
-      if (!mounted) return;
+      if (!mounted.current) return;
       const user = data?.user ?? null;
       setEmail(user?.email ?? null);
       if (user) {
         const result = await getOrCreateProfile({ id: user.id, email: user.email });
-        if (mounted) {
+        if (mounted.current) {
           setProfile(result.profile);
           setError(result.error);
         }
@@ -165,28 +118,19 @@ function SettingsContent() {
         setProfile(null);
         setError(null);
       }
-    }
 
-    async function loadStravaConnectionStatus() {
-      try {
-        const response = await fetch("/api/strava/status");
-        if (!response.ok) return;
-        const data = await response.json();
-        setHasStravaConnection(Boolean(data?.has_connection));
-      } catch (err) {
-        console.error("Failed to load Strava connection status:", err);
-      }
+      const sessionResult = await c.auth.getSession();
+      await loadStravaConnectionStatus(sessionResult.data?.session?.access_token);
     }
 
     loadUser(client);
-    loadStravaConnectionStatus();
 
     const { data: sub } = client.auth.onAuthStateChange(async (_event, session) => {
       const user = session?.user ?? null;
       setEmail(user?.email ?? null);
       if (user) {
         const result = await getOrCreateProfile({ id: user.id, email: user.email });
-        if (mounted) {
+        if (mounted.current) {
           setProfile(result.profile);
           setError(result.error);
         }
@@ -194,10 +138,13 @@ function SettingsContent() {
         setProfile(null);
         setError(null);
       }
+      await loadStravaConnectionStatus(session?.access_token);
     });
 
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  const stravaConnectHref = profile?.id ? `/api/strava/connect?user_id=${profile.id}` : "/api/strava/connect";
 
   return (
     <main className="min-h-[calc(100vh-88px)] bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-950 px-6 py-10 text-white">
@@ -242,7 +189,7 @@ function SettingsContent() {
               <p className="mt-1 text-sm leading-6 text-slate-300">Strava athlete id: {profile?.strava_athlete_id ?? "Not connected"}</p>
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <a
-                  href="/api/strava/connect"
+                  href={stravaConnectHref}
                   className="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 font-semibold text-white transition hover:bg-orange-700"
                 >
                   {profile?.strava_athlete_id ? "Reconnect Strava" : "Connect Strava"}
@@ -251,7 +198,7 @@ function SettingsContent() {
                   <button
                     type="button"
                     disabled={syncing}
-                    onClick={handleSyncActivities}
+                    onClick={syncActivities}
                     className="inline-flex items-center rounded-lg bg-slate-700 px-4 py-2 font-semibold text-white transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {syncing ? "Syncing..." : "Sync Strava Activities"}
@@ -264,7 +211,7 @@ function SettingsContent() {
               <p className="mt-4 text-base text-slate-300">Please sign in to view account details.</p>
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <a
-                  href="/api/strava/connect"
+                  href={stravaConnectHref}
                   className="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 font-semibold text-white transition hover:bg-orange-700"
                 >
                   Connect Strava
@@ -273,7 +220,7 @@ function SettingsContent() {
                   <button
                     type="button"
                     disabled={syncing}
-                    onClick={handleSyncActivities}
+                    onClick={syncActivities}
                     className="inline-flex items-center rounded-lg bg-slate-700 px-4 py-2 font-semibold text-white transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {syncing ? "Syncing..." : "Sync Strava Activities"}

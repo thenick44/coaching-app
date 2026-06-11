@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-
-type ActivityRecord = {
-  raw_json: {
-    start_date?: string;
-    distance?: number;
-    total_elevation_gain?: number;
-    moving_time?: number;
-    sport_type?: string;
-    type?: string;
-    name?: string;
-    [key: string]: any;
-  };
-};
+import {
+  type ActivityRecord,
+  average,
+  buildWeeklyStats,
+  calculateReadinessScore,
+  calculateRecentTrainingLoad,
+  describeTrend,
+  findLongestEfforts,
+  getDaysUntilEvent,
+  getWeekEnd,
+  getWeekStart,
+} from "@/src/lib/activityMetrics";
 
 type GoalRecord = {
   id: string;
@@ -25,12 +24,6 @@ type GoalRecord = {
   target_finish_time?: string | null;
   expected_low_temp_f?: number | null;
   expected_high_temp_f?: number | null;
-};
-
-type LongestEffort = {
-  distanceMiles: number;
-  name: string | null;
-  date: string | null;
 };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -68,60 +61,6 @@ async function resolveTargetUserId(accessToken?: string) {
 
   if (error || !firstProfile?.id) return null;
   return firstProfile.id;
-}
-
-function metersToMiles(meters: number) {
-  return meters / 1609.34;
-}
-
-function metersToFeet(meters: number) {
-  return meters * 3.28084;
-}
-
-function secondsToMinutes(seconds: number) {
-  return seconds / 60;
-}
-
-function getWeekStart(date: Date) {
-  const weekStart = new Date(date);
-  weekStart.setHours(0, 0, 0, 0);
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-  return weekStart;
-}
-
-function getWeekEnd(start: Date) {
-  const weekEnd = new Date(start);
-  weekEnd.setDate(start.getDate() + 6);
-  weekEnd.setHours(23, 59, 59, 999);
-  return weekEnd;
-}
-
-function calculateReadinessScore(current: number, previous: number) {
-  if (current <= 0 || previous <= 0) return 50;
-  const trend = current / previous;
-  const score = 60 + Math.min(20, Math.max(-15, (trend - 1) * 40));
-  return Math.round(Math.min(95, Math.max(30, score)));
-}
-
-function average(values: number[]) {
-  if (!values.length) return 0;
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function describeTrend(recent: number, previous: number): "increasing" | "decreasing" | "steady" {
-  if (previous <= 0) return recent > 0 ? "increasing" : "steady";
-  const changePercent = ((recent - previous) / previous) * 100;
-  if (Math.abs(changePercent) < 5) return "steady";
-  return changePercent > 0 ? "increasing" : "decreasing";
-}
-
-function getDaysUntilEvent(eventDateStr: string, referenceDate: Date) {
-  const event = new Date(`${eventDateStr}T00:00:00Z`);
-  const refDateOnly = new Date(
-    Date.UTC(referenceDate.getUTCFullYear(), referenceDate.getUTCMonth(), referenceDate.getUTCDate())
-  );
-  const diffMs = event.getTime() - refDateOnly.getTime();
-  return Math.round(diffMs / (1000 * 60 * 60 * 24));
 }
 
 function pickRelevantLongestDistance(eventType: string | null | undefined, longestRideMiles: number, longestRunMiles: number) {
@@ -200,9 +139,6 @@ export async function POST(request: NextRequest) {
   const now = new Date();
   const currentWeekStart = getWeekStart(now);
   const currentWeekEnd = getWeekEnd(currentWeekStart);
-  const previousWeekStart = new Date(currentWeekStart);
-  previousWeekStart.setDate(currentWeekStart.getDate() - 7);
-  const previousWeekEnd = getWeekEnd(previousWeekStart);
   const oldestDate = new Date(currentWeekStart);
   oldestDate.setDate(oldestDate.getDate() - 7 * 11);
   const eightWeeksAgo = new Date(currentWeekStart);
@@ -236,24 +172,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to load goals data." }, { status: 500 });
   }
 
-  const weeklyStats = Array.from({ length: 12 }, (_, index) => ({
-    weekStart: new Date(currentWeekStart),
-    distance: 0,
-    elevation: 0,
-    movingTime: 0,
-  })).map((item, index) => {
-    const weekStart = new Date(currentWeekStart);
-    weekStart.setDate(currentWeekStart.getDate() - (11 - index) * 7);
-    return { ...item, weekStart };
-  });
+  const weeklyStats = buildWeeklyStats((activities ?? []) as ActivityRecord[], currentWeekStart, 12);
+  const { longestRide, longestRun } = findLongestEfforts((activities ?? []) as ActivityRecord[], eightWeeksAgo);
 
   const reportMetrics = {
-    currentDistance: 0,
-    currentElevation: 0,
-    currentMovingTime: 0,
-    previousDistance: 0,
-    previousElevation: 0,
-    previousMovingTime: 0,
+    currentDistance: weeklyStats[weeklyStats.length - 1].distance,
+    currentElevation: weeklyStats[weeklyStats.length - 1].elevation,
+    currentMovingTime: weeklyStats[weeklyStats.length - 1].movingTime,
+    previousDistance: weeklyStats[weeklyStats.length - 2].distance,
+    previousElevation: weeklyStats[weeklyStats.length - 2].elevation,
+    previousMovingTime: weeklyStats[weeklyStats.length - 2].movingTime,
   };
 
   const parsedGoals: GoalRecord[] = (goals ?? []).map((goal: GoalRecord) => ({
@@ -268,54 +196,6 @@ export async function POST(request: NextRequest) {
     expected_low_temp_f: goal.expected_low_temp_f ?? null,
     expected_high_temp_f: goal.expected_high_temp_f ?? null,
   }));
-
-  const longestRide: LongestEffort = { distanceMiles: 0, name: null, date: null };
-  const longestRun: LongestEffort = { distanceMiles: 0, name: null, date: null };
-
-  (activities ?? []).forEach((activity: ActivityRecord) => {
-    const dateValue = activity.raw_json?.start_date;
-    if (!dateValue) return;
-
-    const activityDate = new Date(dateValue);
-    if (Number.isNaN(activityDate.valueOf())) return;
-
-    const distance = metersToMiles(activity.raw_json?.distance ?? 0);
-    const elevation = metersToFeet(activity.raw_json?.total_elevation_gain ?? 0);
-    const movingTime = secondsToMinutes(activity.raw_json?.moving_time ?? 0);
-
-    const weekStart = getWeekStart(activityDate);
-    const bucket = weeklyStats.find((row) => row.weekStart.toISOString() === weekStart.toISOString());
-    if (bucket) {
-      bucket.distance += distance;
-      bucket.elevation += elevation;
-      bucket.movingTime += movingTime;
-    }
-
-    if (activityDate >= currentWeekStart && activityDate <= currentWeekEnd) {
-      reportMetrics.currentDistance += distance;
-      reportMetrics.currentElevation += elevation;
-      reportMetrics.currentMovingTime += movingTime;
-    }
-
-    if (activityDate >= previousWeekStart && activityDate <= previousWeekEnd) {
-      reportMetrics.previousDistance += distance;
-      reportMetrics.previousElevation += elevation;
-      reportMetrics.previousMovingTime += movingTime;
-    }
-
-    if (activityDate >= eightWeeksAgo) {
-      const sportType = String(activity.raw_json?.sport_type || activity.raw_json?.type || "").toLowerCase();
-      if (sportType.includes("run") && distance > longestRun.distanceMiles) {
-        longestRun.distanceMiles = distance;
-        longestRun.name = activity.raw_json?.name ?? null;
-        longestRun.date = dateValue;
-      } else if (sportType.includes("ride") && distance > longestRide.distanceMiles) {
-        longestRide.distanceMiles = distance;
-        longestRide.name = activity.raw_json?.name ?? null;
-        longestRide.date = dateValue;
-      }
-    }
-  });
 
   const readinessScore = calculateReadinessScore(reportMetrics.currentDistance, reportMetrics.previousDistance);
 
@@ -340,7 +220,6 @@ export async function POST(request: NextRequest) {
   const priorAvgDistance = average(priorWeeks.map((week) => week.distance));
   const recentAvgElevation = average(recentWeeks.map((week) => week.elevation));
   const priorAvgElevation = average(priorWeeks.map((week) => week.elevation));
-  const recentAvgMovingTime = average(recentWeeks.map((week) => week.movingTime));
 
   const weeklyDistanceTrend = {
     direction: describeTrend(recentAvgDistance, priorAvgDistance),
@@ -354,11 +233,7 @@ export async function POST(request: NextRequest) {
     previous_average_feet: Number(priorAvgElevation.toFixed(0)),
   };
 
-  const recentTrainingLoad = {
-    average_weekly_distance_miles: Number(recentAvgDistance.toFixed(1)),
-    average_weekly_elevation_feet: Number(recentAvgElevation.toFixed(0)),
-    average_weekly_moving_time_minutes: Number(recentAvgMovingTime.toFixed(0)),
-  };
+  const recentTrainingLoad = calculateRecentTrainingLoad(weeklyStats, 4);
 
   // Goal-specific analysis and recommendations.
   let volumeComparison: string;
@@ -464,6 +339,60 @@ export async function POST(request: NextRequest) {
     recommendations.recovery_focus = "Prioritize sleep, nutrition, and at least one full rest day per week to support consistent training.";
   }
 
+  // Active training plan progress for the current week, if one exists.
+  let trainingPlanProgress: {
+    plan_id: string;
+    plan_name: string;
+    week_workouts: Array<{
+      id: string;
+      scheduled_date: string;
+      workout_type: string;
+      title: string;
+      completed: boolean;
+      distance_miles: number | null;
+      duration_minutes: number | null;
+    }>;
+    completed_count: number;
+    total_count: number;
+    adherence_percent: number | null;
+  } | null = null;
+
+  const { data: activePlan, error: activePlanError } = await supabaseAdmin
+    .from("training_plans")
+    .select("id, name")
+    .eq("user_id", targetUserId)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (activePlanError) {
+    console.error("Failed to load active training plan for coaching report:", activePlanError);
+  } else if (activePlan) {
+    const { data: weekWorkouts, error: weekWorkoutsError } = await supabaseAdmin
+      .from("training_plan_workouts")
+      .select("id, scheduled_date, workout_type, title, completed, distance_miles, duration_minutes")
+      .eq("training_plan_id", activePlan.id)
+      .gte("scheduled_date", currentWeekStart.toISOString().slice(0, 10))
+      .lte("scheduled_date", currentWeekEnd.toISOString().slice(0, 10))
+      .order("scheduled_date", { ascending: true });
+
+    if (weekWorkoutsError) {
+      console.error("Failed to load training plan workouts for coaching report:", weekWorkoutsError);
+    } else {
+      const workouts = weekWorkouts ?? [];
+      const completedCount = workouts.filter((workout) => workout.completed).length;
+      trainingPlanProgress = {
+        plan_id: activePlan.id,
+        plan_name: activePlan.name,
+        week_workouts: workouts,
+        completed_count: completedCount,
+        total_count: workouts.length,
+        adherence_percent: workouts.length ? Math.round((completedCount / workouts.length) * 100) : null,
+      };
+    }
+  }
+
   const goalAnalysis = {
     goal: nearestGoal
       ? {
@@ -503,6 +432,7 @@ export async function POST(request: NextRequest) {
       strengths,
     },
     recommendations,
+    training_plan_progress: trainingPlanProgress,
   };
 
   const upcomingGoals = parsedGoals.slice(0, 3);

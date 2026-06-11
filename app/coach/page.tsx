@@ -52,6 +52,24 @@ type GoalAnalysis = {
     strengths: string[];
   };
   recommendations: Record<string, string>;
+  training_plan_progress: TrainingPlanProgress | null;
+};
+
+type TrainingPlanProgress = {
+  plan_id: string;
+  plan_name: string;
+  week_workouts: Array<{
+    id: string;
+    scheduled_date: string;
+    workout_type: string;
+    title: string;
+    completed: boolean;
+    distance_miles: number | null;
+    duration_minutes: number | null;
+  }>;
+  completed_count: number;
+  total_count: number;
+  adherence_percent: number | null;
 };
 
 type CoachingReport = {
@@ -399,6 +417,42 @@ export default function CoachPage() {
                   ))}
                 </div>
               </div>
+
+              {latestReport.goal_analysis.training_plan_progress && (
+                <div className="mt-6 rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">This week&apos;s plan</p>
+                    <span className="rounded-full bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-slate-400">
+                      {latestReport.goal_analysis.training_plan_progress.completed_count}/{latestReport.goal_analysis.training_plan_progress.total_count} done
+                      {latestReport.goal_analysis.training_plan_progress.adherence_percent != null
+                        ? ` · ${latestReport.goal_analysis.training_plan_progress.adherence_percent}%`
+                        : ""}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-base font-semibold text-white">{latestReport.goal_analysis.training_plan_progress.plan_name}</p>
+                  {latestReport.goal_analysis.training_plan_progress.week_workouts.length ? (
+                    <ul className="mt-3 space-y-2">
+                      {latestReport.goal_analysis.training_plan_progress.week_workouts.map((workout) => (
+                        <li key={workout.id} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-900/80 p-3">
+                          <div>
+                            <p className="font-semibold text-white">{workout.title}</p>
+                            <p className="mt-1 text-slate-400">
+                              {formatDate(workout.scheduled_date)} · {workout.workout_type}
+                              {workout.distance_miles != null ? ` · ${workout.distance_miles} mi` : ""}
+                              {workout.duration_minutes != null ? ` · ${workout.duration_minutes} min` : ""}
+                            </p>
+                          </div>
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${workout.completed ? "bg-emerald-500/10 text-emerald-300" : "bg-white/5 text-slate-400"}`}>
+                            {workout.completed ? "Done" : "Pending"}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-3 text-slate-400">No workouts scheduled for this week.</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

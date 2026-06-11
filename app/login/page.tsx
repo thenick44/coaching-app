@@ -61,7 +61,7 @@ export default function LoginPage() {
       if (typeof msg === "string" && msg.toLowerCase().includes("email rate limit exceeded")) {
         setErrorMessage("Too many sign-in emails were requested. Please wait a few minutes before trying again.");
       } else {
-        setErrorMessage("Error sending link.");
+        setErrorMessage(msg || "Error sending link.");
       }
       setStatus("error");
     }

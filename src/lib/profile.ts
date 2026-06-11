@@ -4,6 +4,7 @@ export type Profile = {
   id: string;
   email?: string | null;
   strava_athlete_id?: number | null;
+  has_seen_welcome?: boolean;
   [key: string]: unknown;
 };
 
@@ -47,4 +48,18 @@ export async function getOrCreateProfile(user: { id: string; email?: string | nu
   }
 
   return { profile: inserted ?? null, error: null };
+}
+
+export async function markWelcomeSeen(userId: string): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+
+  const { error } = await client
+    .from("profiles")
+    .update({ has_seen_welcome: true })
+    .eq("id", userId);
+
+  if (error) {
+    console.error("Error marking welcome as seen:", error);
+  }
 }

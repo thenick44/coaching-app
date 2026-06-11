@@ -3,10 +3,14 @@
 import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/src/lib/supabaseClient";
+import { getOrCreateProfile, markWelcomeSeen } from "@/src/lib/profile";
+import WelcomeTour from "./WelcomeTour";
 
 export default function Protected({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeUserId, setWelcomeUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -23,8 +27,17 @@ export default function Protected({ children }: { children: ReactNode }) {
       if (!mounted) return;
       if (!session) {
         router.push("/login");
-      } else {
-        setLoading(false);
+        return;
+      }
+
+      setLoading(false);
+
+      const user = session.user;
+      const result = await getOrCreateProfile({ id: user.id, email: user.email });
+      if (!mounted) return;
+      if (result.profile && !result.profile.has_seen_welcome) {
+        setWelcomeUserId(result.profile.id);
+        setShowWelcome(true);
       }
     }
 
@@ -45,6 +58,18 @@ export default function Protected({ children }: { children: ReactNode }) {
     };
   }, [router]);
 
+  const dismissWelcome = () => {
+    setShowWelcome(false);
+    if (welcomeUserId) {
+      markWelcomeSeen(welcomeUserId);
+    }
+  };
+
   if (loading) return null;
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {showWelcome && <WelcomeTour onDismiss={dismissWelcome} />}
+    </>
+  );
 }

@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Failed to load coaching reports." }, { status: 500 });
   }
 
-  return NextResponse.json({ developmentMode: false, reports: data ?? [] });
+  return NextResponse.json({ reports: data ?? [] });
 }
 
 export async function POST(request: NextRequest) {

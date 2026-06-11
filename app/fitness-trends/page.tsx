@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
+import Protected from "../components/Protected";
 
 type DashboardActivity = {
   strava_activity_id: number;
@@ -15,7 +16,6 @@ type DashboardActivity = {
 };
 
 type DashboardPayload = {
-  developmentMode: boolean;
   targetUserId: string | null;
   activityCount: number;
   activities: DashboardActivity[];
@@ -217,7 +217,6 @@ function FitnessTrendChart({
 export default function FitnessTrendsPage() {
   const mounted = useRef(true);
   const [loading, setLoading] = useState(true);
-  const [signedIn, setSignedIn] = useState(true);
   const [dashboardData, setDashboardData] = useState<DashboardPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -227,7 +226,6 @@ export default function FitnessTrendsPage() {
     async function loadDashboard() {
       if (!supabase) {
         setError("Supabase is not configured.");
-        setSignedIn(false);
         setLoading(false);
         return;
       }
@@ -235,8 +233,6 @@ export default function FitnessTrendsPage() {
       const sessionResult = await supabase.auth.getSession();
       const session = sessionResult.data?.session;
       const accessToken = session?.access_token;
-      const hasSession = Boolean(session?.user?.id);
-      setSignedIn(hasSession);
 
       const headers = accessToken
         ? { Authorization: `Bearer ${accessToken}` }
@@ -285,6 +281,7 @@ export default function FitnessTrendsPage() {
   const bestTimeIndex = timeValues.indexOf(Math.max(...timeValues));
 
   return (
+    <Protected>
     <main className="min-h-[calc(100vh-88px)] bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-950 px-6 py-10 text-white">
       <div className="mx-auto flex min-h-full max-w-7xl flex-col justify-center gap-8 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-black/20 backdrop-blur-xl sm:p-10">
         <div className="space-y-4 text-center">
@@ -294,15 +291,6 @@ export default function FitnessTrendsPage() {
             Track weekly progress, rolling averages, and your best training weeks over the last 12 weeks.
           </p>
         </div>
-
-        {!signedIn && (
-          <div className="mx-auto max-w-2xl rounded-2xl border border-yellow-500/30 bg-yellow-950/30 p-4 text-sm text-yellow-200 shadow-lg shadow-black/20">
-            <p className="font-semibold">Development Mode - Not signed in</p>
-            <p className="mt-1 text-yellow-100">
-              Temporary development-only fallback is active. Trends are loaded from the first available Strava connection.
-            </p>
-          </div>
-        )}
 
         {error && (
           <div className="mx-auto max-w-2xl rounded-2xl border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-200 shadow-lg shadow-black/20">
@@ -344,5 +332,6 @@ export default function FitnessTrendsPage() {
         )}
       </div>
     </main>
+    </Protected>
   );
 }

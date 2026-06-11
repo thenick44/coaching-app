@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
+import Protected from "../components/Protected";
 
 type WeeklyTrend = {
   direction: "increasing" | "decreasing" | "steady";
@@ -96,7 +97,6 @@ type CoachingReport = {
 };
 
 type CoachingReportPayload = {
-  developmentMode: boolean;
   reports: CoachingReport[];
 };
 
@@ -146,7 +146,6 @@ export default function CoachPage() {
   const mounted = useRef(true);
   const [loading, setLoading] = useState(true);
   const [reports, setReports] = useState<CoachingReport[]>([]);
-  const [signedIn, setSignedIn] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -157,7 +156,6 @@ export default function CoachPage() {
     async function loadReports() {
       if (!supabase) {
         setError("Supabase is not configured.");
-        setSignedIn(false);
         setLoading(false);
         return;
       }
@@ -165,8 +163,6 @@ export default function CoachPage() {
       const sessionResult = await supabase.auth.getSession();
       const session = sessionResult.data?.session;
       const accessToken = session?.access_token;
-      const hasSession = Boolean(session?.user?.id);
-      setSignedIn(hasSession);
 
       const headers = accessToken
         ? { Authorization: `Bearer ${accessToken}` }
@@ -244,6 +240,7 @@ export default function CoachPage() {
   const latestReport = reports[0];
 
   return (
+    <Protected>
       <main className="min-h-[calc(100vh-88px)] bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-950 px-6 py-10 text-white">
         <div className="mx-auto flex min-h-full max-w-6xl flex-col justify-center gap-8 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-black/20 backdrop-blur-xl sm:p-10">
           <div className="space-y-4 text-center">
@@ -253,15 +250,6 @@ export default function CoachPage() {
               Generate a data-driven weekly coaching summary from your recent Strava activity and upcoming goals. Keep your plan focused and monitor readiness over time.
             </p>
           </div>
-
-          {!signedIn && (
-            <div className="mx-auto max-w-2xl rounded-2xl border border-yellow-500/30 bg-yellow-950/30 p-4 text-sm text-yellow-200 shadow-lg shadow-black/20">
-              <p className="font-semibold">Development Mode - Not signed in</p>
-              <p className="mt-1 text-yellow-100">
-                A temporary fallback is active so you can generate reports from available Strava activity when a signed-in user is not present.
-              </p>
-            </div>
-          )}
 
           {error && (
             <div className="rounded-2xl border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-200 shadow-lg shadow-black/20">
@@ -527,5 +515,6 @@ export default function CoachPage() {
           </div>
         </div>
       </main>
+    </Protected>
   );
 }

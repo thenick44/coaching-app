@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseAdmin, getAuthenticatedUser, getBearerToken, isServerConfigured, resolveTargetUserId } from "@/src/lib/serverAuth";
+import { createSupabaseAdmin, getBearerToken, isServerConfigured, resolveTargetUserId } from "@/src/lib/serverAuth";
 
 export async function GET(request: NextRequest) {
   if (!isServerConfigured()) {
@@ -9,26 +9,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const accessToken = getBearerToken(request);
-
-  let targetUserId: string | null = null;
-  let developmentMode = false;
-
-  if (accessToken) {
-    const user = await getAuthenticatedUser(accessToken);
-    if (user?.id) {
-      targetUserId = user.id;
-    }
-  }
-
-  if (!targetUserId) {
-    targetUserId = await resolveTargetUserId();
-    developmentMode = Boolean(targetUserId);
-  }
+  const targetUserId = await resolveTargetUserId(getBearerToken(request));
 
   if (!targetUserId) {
     return NextResponse.json(
-      { error: "Authentication required or no profile available." },
+      { error: "Authentication required." },
       { status: 401 }
     );
   }
@@ -49,7 +34,6 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({
-    developmentMode,
     targetUserId,
     activityCount: Array.isArray(activities) ? activities.length : 0,
     activities: Array.isArray(activities) ? activities : [],

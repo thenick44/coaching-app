@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { supabase, isSupabaseConfigured } from "@/src/lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOrCreateProfile, Profile } from "@/src/lib/profile";
+import Protected from "../components/Protected";
 
 const ERROR_MESSAGES: Record<string, string> = {
   no_code: "Failed to connect to Strava: No authorization code received",
@@ -159,13 +160,6 @@ function SettingsContent() {
           </p>
         </div>
 
-        {!email && (
-          <div className="mx-auto max-w-2xl rounded-2xl border border-yellow-500/30 bg-yellow-950/30 p-4 text-sm text-yellow-200 shadow-lg shadow-black/20">
-            <p className="font-semibold">Development Mode - Not signed in</p>
-            <p className="mt-1">Sign in to manage your profile data.</p>
-          </div>
-        )}
-
         {error && (
           <div className="mx-auto max-w-2xl rounded-2xl border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-200 shadow-lg shadow-black/20">
             <p className="font-semibold">Error</p>
@@ -207,27 +201,7 @@ function SettingsContent() {
               </div>
             </>
           ) : (
-            <>
-              <p className="mt-4 text-base text-slate-300">Please sign in to view account details.</p>
-              <div className="mt-6 flex flex-wrap items-center gap-3">
-                <a
-                  href={stravaConnectHref}
-                  className="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 font-semibold text-white transition hover:bg-orange-700"
-                >
-                  Connect Strava
-                </a>
-                {showSyncButton && (
-                  <button
-                    type="button"
-                    disabled={syncing}
-                    onClick={syncActivities}
-                    className="inline-flex items-center rounded-lg bg-slate-700 px-4 py-2 font-semibold text-white transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {syncing ? "Syncing..." : "Sync Strava Activities"}
-                  </button>
-                )}
-              </div>
-            </>
+            <p className="mt-4 text-base text-slate-300">Loading account details...</p>
           )}
 
           <p className="mt-4 text-sm leading-6 text-slate-400">
@@ -242,7 +216,9 @@ function SettingsContent() {
 export default function SettingsPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-950" />}>
-      <SettingsContent />
+      <Protected>
+        <SettingsContent />
+      </Protected>
     </Suspense>
   );
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseAdmin, isServerConfigured, resolveTargetUserId } from "@/src/lib/serverAuth";
+import { createSupabaseAdmin, isServerConfigured } from "@/src/lib/serverAuth";
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     });
 
     const athleteId = tokenData.athlete?.id ?? null;
-    const userId = state || (await resolveTargetUserId());
+    const userId = state;
 
     if (!userId || !athleteId) {
       return NextResponse.redirect(new URL("/settings?error=oauth_error", request.url));

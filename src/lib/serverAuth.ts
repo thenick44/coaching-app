@@ -40,25 +40,12 @@ export async function getAuthenticatedUser(accessToken: string): Promise<Authent
 }
 
 /**
- * Resolves the user id for an API request: the authenticated user if a
- * valid access token was provided, otherwise the first profile row (dev
- * convenience for unauthenticated/local use).
+ * Resolves the user id for an API request from a verified access token.
+ * Returns null if no token was provided or it doesn't correspond to a
+ * valid session.
  */
 export async function resolveTargetUserId(accessToken?: string): Promise<string | null> {
-  const supabaseAdmin = createSupabaseAdmin();
-  if (!supabaseAdmin) return null;
-
-  if (accessToken) {
-    const user = await getAuthenticatedUser(accessToken);
-    if (user?.id) return user.id;
-  }
-
-  const { data: firstProfile, error } = await supabaseAdmin
-    .from("profiles")
-    .select("id")
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !firstProfile?.id) return null;
-  return firstProfile.id;
+  if (!accessToken) return null;
+  const user = await getAuthenticatedUser(accessToken);
+  return user?.id ?? null;
 }

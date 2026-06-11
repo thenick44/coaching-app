@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
 
-function GitHubIcon() {
+function AppleIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.387.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.725-4.042-1.61-4.042-1.61-.546-1.385-1.333-1.755-1.333-1.755-1.089-.745.083-.729.083-.729 1.205.084 1.84 1.237 1.84 1.237 1.07 1.834 2.807 1.304 3.492.997.108-.775.418-1.305.762-1.605-2.665-.303-5.466-1.332-5.466-5.93 0-1.31.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.5 11.5 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.61-2.805 5.624-5.476 5.921.43.372.823 1.102.823 2.222 0 1.604-.015 2.896-.015 3.286 0 .322.216.696.825.578C20.565 21.795 24 17.298 24 12c0-6.63-5.373-12-12-12Z" />
+      <path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.014-.07-.04-.23-.04-.4 0-1.13.572-2.27 1.207-2.98.7-.91 1.95-1.6 2.945-1.65.013.13.013.27.013.41zm4.564 16.59c-.04.09-.59 2.04-1.94 4.03-1.16 1.7-2.36 3.4-4.27 3.43-1.86.04-2.46-1.1-4.59-1.1-2.13 0-2.79 1.07-4.55 1.14-1.83.07-3.23-1.84-4.4-3.53-2.39-3.46-4.21-9.78-1.76-14.04 1.21-2.12 3.39-3.46 5.74-3.5 1.79-.03 3.48 1.2 4.58 1.2 1.09 0 3.16-1.49 5.32-1.27.91.04 3.45.37 5.08 2.78-.13.08-3.03 1.77-3 5.27.04 4.18 3.66 5.57 3.7 5.59z" />
     </svg>
   );
 }
@@ -15,7 +15,7 @@ export default function LoginPage() {
   const [status, setStatus] = useState<"idle" | "redirecting" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleGitHubSignIn = async () => {
+  const handleAppleSignIn = async () => {
     if (!supabase) {
       setErrorMessage("Supabase is not configured.");
       setStatus("error");
@@ -30,12 +30,12 @@ export default function LoginPage() {
     const redirectTo = base ? `${String(base).replace(/\/$/, "")}/auth/callback` : undefined;
 
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: "github",
+      provider: "apple",
       options: { redirectTo },
     });
 
     if (error) {
-      setErrorMessage(error.message ?? "Error signing in with GitHub.");
+      setErrorMessage(error.message ?? "Error signing in with Apple.");
       setStatus("error");
     }
   };
@@ -47,19 +47,19 @@ export default function LoginPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-300">Sign In</p>
           <h1 className="text-3xl font-semibold text-white">Sign in to your account</h1>
           <p className="mx-auto max-w-xl text-base leading-7 text-slate-300">
-            Continue with GitHub to access your dashboard, goals, and training plans.
+            Continue with Apple to access your dashboard, goals, and training plans.
           </p>
         </div>
 
         <div className="mx-auto w-full max-w-md">
           <button
             type="button"
-            onClick={handleGitHubSignIn}
+            onClick={handleAppleSignIn}
             disabled={status === "redirecting"}
-            className="flex w-full items-center justify-center gap-3 rounded-full border border-white/10 bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-3 rounded-full border border-white/10 bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <GitHubIcon />
-            {status === "redirecting" ? "Redirecting..." : "Continue with GitHub"}
+            <AppleIcon />
+            {status === "redirecting" ? "Redirecting..." : "Continue with Apple"}
           </button>
 
           {status === "error" && errorMessage ? (

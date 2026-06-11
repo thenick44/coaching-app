@@ -3,6 +3,57 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
 
+type WeeklyTrend = {
+  direction: "increasing" | "decreasing" | "steady";
+  recent_average_miles?: number;
+  previous_average_miles?: number;
+  recent_average_feet?: number;
+  previous_average_feet?: number;
+};
+
+type LongestEffort = {
+  distance_miles: number;
+  name: string | null;
+  date: string | null;
+};
+
+type GoalAnalysis = {
+  goal: {
+    id: string;
+    name: string;
+    event_date: string;
+    event_location: string | null;
+    event_type: string | null;
+    distance_miles: number | null;
+    elevation_feet: number | null;
+    target_finish_time: string | null;
+    expected_low_temp_f: number | null;
+    expected_high_temp_f: number | null;
+    days_until_event: number;
+  } | null;
+  countdown: string | null;
+  trends: {
+    weekly_distance: WeeklyTrend;
+    weekly_elevation: WeeklyTrend;
+  };
+  recent_training_load: {
+    average_weekly_distance_miles: number;
+    average_weekly_elevation_feet: number;
+    average_weekly_moving_time_minutes: number;
+  };
+  longest_efforts_last_8_weeks: {
+    ride: LongestEffort | null;
+    run: LongestEffort | null;
+  };
+  analysis: {
+    volume_comparison: string;
+    climbing_comparison: string;
+    readiness_risks: string[];
+    strengths: string[];
+  };
+  recommendations: Record<string, string>;
+};
+
 type CoachingReport = {
   id: string;
   report_week_start: string;
@@ -22,6 +73,7 @@ type CoachingReport = {
     distance_miles: number | null;
     event_location: string | null;
   }>;
+  goal_analysis: GoalAnalysis | null;
   created_at: string;
 };
 
@@ -58,6 +110,19 @@ function formatMovingTime(minutes: number | null) {
 function getWeekLabel(startDate: string, endDate: string) {
   return `${formatDate(startDate)} — ${formatDate(endDate)}`;
 }
+
+function formatTrendDirection(direction: WeeklyTrend["direction"]) {
+  if (direction === "increasing") return "Increasing";
+  if (direction === "decreasing") return "Decreasing";
+  return "Steady";
+}
+
+const recommendationLabels: Record<string, string> = {
+  endurance_focus: "Endurance focus",
+  climbing_focus: "Climbing focus",
+  recovery_focus: "Recovery focus",
+  heat_adaptation_focus: "Heat adaptation focus",
+};
 
 export default function CoachPage() {
   const mounted = useRef(true);
@@ -250,6 +315,93 @@ export default function CoachPage() {
             </div>
           </div>
 
+          {!loading && latestReport?.goal_analysis && (
+            <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-lg shadow-black/20 sm:p-8">
+              <p className="text-sm uppercase tracking-[0.28em] text-slate-400">Goal readiness</p>
+              {latestReport.goal_analysis.countdown ? (
+                <p className="mt-3 text-2xl font-semibold text-white">{latestReport.goal_analysis.countdown}</p>
+              ) : (
+                <p className="mt-3 text-base text-slate-300">No upcoming goal is set yet.</p>
+              )}
+              {latestReport.goal_analysis.goal && (
+                <p className="mt-1 text-sm text-slate-400">
+                  {latestReport.goal_analysis.goal.event_location ?? "Location TBD"} · {latestReport.goal_analysis.goal.event_type ?? "Event"} · {formatDate(latestReport.goal_analysis.goal.event_date)}
+                </p>
+              )}
+
+              <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                  <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Distance trend</p>
+                  <p className="mt-2 text-lg font-semibold text-white">{formatTrendDirection(latestReport.goal_analysis.trends.weekly_distance.direction)}</p>
+                  <p className="mt-1 text-slate-400">{(latestReport.goal_analysis.trends.weekly_distance.recent_average_miles ?? 0).toFixed(1)} mi/wk avg</p>
+                </div>
+                <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                  <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Elevation trend</p>
+                  <p className="mt-2 text-lg font-semibold text-white">{formatTrendDirection(latestReport.goal_analysis.trends.weekly_elevation.direction)}</p>
+                  <p className="mt-1 text-slate-400">{Math.round(latestReport.goal_analysis.trends.weekly_elevation.recent_average_feet ?? 0)} ft/wk avg</p>
+                </div>
+                <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                  <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Longest ride (8 wks)</p>
+                  <p className="mt-2 text-lg font-semibold text-white">
+                    {latestReport.goal_analysis.longest_efforts_last_8_weeks.ride
+                      ? `${latestReport.goal_analysis.longest_efforts_last_8_weeks.ride.distance_miles.toFixed(1)} mi`
+                      : "—"}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                  <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Longest run (8 wks)</p>
+                  <p className="mt-2 text-lg font-semibold text-white">
+                    {latestReport.goal_analysis.longest_efforts_last_8_weeks.run
+                      ? `${latestReport.goal_analysis.longest_efforts_last_8_weeks.run.distance_miles.toFixed(1)} mi`
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                  <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Volume vs. goal</p>
+                  <p className="mt-2 leading-6">{latestReport.goal_analysis.analysis.volume_comparison}</p>
+                </div>
+                <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                  <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Climbing vs. goal</p>
+                  <p className="mt-2 leading-6">{latestReport.goal_analysis.analysis.climbing_comparison}</p>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                  <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Strengths</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-4 leading-6">
+                    {latestReport.goal_analysis.analysis.strengths.map((item, index) => (
+                      <li key={`strength-${index}`}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                  <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Readiness risks</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-4 leading-6">
+                    {latestReport.goal_analysis.analysis.readiness_risks.map((item, index) => (
+                      <li key={`risk-${index}`}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Training recommendations</p>
+                <div className="mt-3 space-y-3">
+                  {Object.entries(latestReport.goal_analysis.recommendations).map(([key, value]) => (
+                    <div key={key}>
+                      <p className="font-semibold text-white">{recommendationLabels[key] ?? key}</p>
+                      <p className="mt-1 leading-6 text-slate-400">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-lg shadow-black/20 sm:p-8">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -273,6 +425,11 @@ export default function CoachPage() {
                       <div>
                         <p className="text-sm uppercase tracking-[0.28em] text-slate-400">{getWeekLabel(report.report_week_start, report.report_week_end)}</p>
                         <p className="mt-2 text-base leading-7 text-slate-300">{report.report_summary ?? "No summary available."}</p>
+                        {report.goal_analysis?.countdown && (
+                          <p className="mt-2 inline-block rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">
+                            {report.goal_analysis.countdown}
+                          </p>
+                        )}
                       </div>
                       <p className="text-sm text-slate-500">{formatDate(report.created_at)}</p>
                     </div>

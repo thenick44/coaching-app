@@ -13,8 +13,14 @@ CREATE TABLE IF NOT EXISTS public.coaching_reports (
   readiness_score integer,
   report_summary text,
   upcoming_goals jsonb,
+  goal_analysis jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Adds goal_analysis to tables created before this column existed.
+-- See supabase/migrations/0001_add_goal_analysis_to_coaching_reports.sql
+ALTER TABLE public.coaching_reports
+  ADD COLUMN IF NOT EXISTS goal_analysis jsonb;
 
 CREATE INDEX IF NOT EXISTS coaching_reports_user_id_idx ON public.coaching_reports(user_id);
 CREATE INDEX IF NOT EXISTS coaching_reports_created_at_idx ON public.coaching_reports(created_at);

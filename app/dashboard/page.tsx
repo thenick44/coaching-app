@@ -64,6 +64,55 @@ function formatActivityDate(dateString?: string) {
   }).format(date);
 }
 
+function formatActivityType(type?: string) {
+  if (!type) return "Unknown";
+  return type.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+}
+
+function metersPerSecondToMph(metersPerSecond: number) {
+  return metersPerSecond * 2.23694;
+}
+
+function formatPace(metersPerSecond: number) {
+  const secondsPerMile = 1609.34 / metersPerSecond;
+  const minutes = Math.floor(secondsPerMile / 60);
+  const seconds = Math.round(secondsPerMile % 60);
+  return `${minutes}:${seconds.toString().padStart(2, "0")} /mi`;
+}
+
+function getPositiveNumber(raw: DashboardActivity["raw_json"] | undefined, key: string) {
+  const value = raw?.[key];
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function ChevronIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+function ActivityDetailStat({ label, value, colorClass }: { label: string; value: string; colorClass: string }) {
+  return (
+    <div className={`rounded-xl border p-3 ${colorClass}`}>
+      <p className="text-xs uppercase tracking-wide opacity-70">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
 type SummaryTotals = {
   distance: number;
   elevation: number;
@@ -235,6 +284,7 @@ export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<DashboardPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [visibleActivityCount, setVisibleActivityCount] = useState(ACTIVITIES_PAGE_SIZE);
+  const [expandedActivityId, setExpandedActivityId] = useState<number | null>(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -256,6 +306,10 @@ export default function DashboardPage() {
     return () => {
       mounted.current = false;
     };
+  }, []);
+
+  const toggleActivity = useCallback((id: number) => {
+    setExpandedActivityId((current) => (current === id ? null : id));
   }, []);
 
   const refreshDashboard = useCallback(async () => {
@@ -505,34 +559,96 @@ export default function DashboardPage() {
               {recentActivities.length ? (
                 <>
                   <ul className="mt-4 max-h-[32rem] space-y-4 overflow-y-auto pr-1">
-                    {recentActivities.map((activity) => (
-                      <li key={activity.strava_activity_id} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <p className="font-semibold text-white">{activity.raw_json?.name || "Unnamed activity"}</p>
-                            <p className="text-sm text-slate-400">{formatActivityDate(activity.raw_json?.start_date)}</p>
-                          </div>
-                          <div className="grid gap-2 sm:grid-cols-4">
-                            <div className="rounded-2xl bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-500">
-                              {activity.raw_json?.type || activity.raw_json?.sport_type || "Unknown"}
+                    {recentActivities.map((activity) => {
+                      const isExpanded = expandedActivityId === activity.strava_activity_id;
+                      const sportType = String(activity.raw_json?.type || activity.raw_json?.sport_type || "").toLowerCase();
+                      const isRun = sportType.includes("run");
+
+                      const elevationGain = activity.raw_json?.total_elevation_gain;
+                      const elevationFeet = elevationGain != null ? metersToFeet(elevationGain) : null;
+                      const avgSpeed = getPositiveNumber(activity.raw_json, "average_speed");
+                      const avgHeartrate = getPositiveNumber(activity.raw_json, "average_heartrate");
+                      const avgWatts = getPositiveNumber(activity.raw_json, "average_watts");
+                      const calories = getPositiveNumber(activity.raw_json, "calories");
+
+                      const hasDetails = elevationFeet != null || avgSpeed != null || avgHeartrate != null || avgWatts != null || calories != null;
+
+                      return (
+                        <li key={activity.strava_activity_id} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
+                          <button
+                            type="button"
+                            onClick={() => toggleActivity(activity.strava_activity_id)}
+                            aria-expanded={isExpanded}
+                            className="flex w-full flex-col gap-3 text-left sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div>
+                              <p className="font-semibold text-white">{activity.raw_json?.name || "Unnamed activity"}</p>
+                              <p className="text-sm text-slate-400">
+                                {formatActivityDate(activity.raw_json?.start_date)} · {formatActivityType(activity.raw_json?.type || activity.raw_json?.sport_type)}
+                              </p>
                             </div>
-                            <div className="rounded-2xl bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-500">
-                              {activity.raw_json?.distance != null
-                                ? `${metersToMiles(activity.raw_json.distance).toFixed(1)} mi`
-                                : "—"}
+                            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                              <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-300">
+                                {activity.raw_json?.distance != null
+                                  ? `${metersToMiles(activity.raw_json.distance).toFixed(1)} mi`
+                                  : "—"}
+                              </span>
+                              <span className="rounded-full border border-violet-400/20 bg-violet-400/10 px-3 py-1 text-xs font-medium text-violet-300">
+                                {activity.raw_json?.moving_time != null
+                                  ? secondsToHoursMinutes(activity.raw_json.moving_time)
+                                  : "—"}
+                              </span>
+                              <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-xs font-medium text-amber-300">
+                                Effort {calculateEffortScore(activity.raw_json)}
+                              </span>
+                              <ChevronIcon className={`shrink-0 text-slate-500 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                             </div>
-                            <div className="rounded-2xl bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-500">
-                              {activity.raw_json?.moving_time != null
-                                ? secondsToHoursMinutes(activity.raw_json.moving_time)
-                                : "—"}
+                          </button>
+                          {isExpanded && (
+                            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 sm:grid-cols-4">
+                              {elevationFeet != null && (
+                                <ActivityDetailStat
+                                  label="Elevation"
+                                  value={`${Math.round(elevationFeet)} ft`}
+                                  colorClass="border-emerald-400/10 bg-emerald-400/5 text-emerald-300"
+                                />
+                              )}
+                              {avgSpeed != null && (
+                                <ActivityDetailStat
+                                  label={isRun ? "Avg pace" : "Avg speed"}
+                                  value={isRun ? formatPace(avgSpeed) : `${metersPerSecondToMph(avgSpeed).toFixed(1)} mph`}
+                                  colorClass="border-indigo-400/10 bg-indigo-400/5 text-indigo-300"
+                                />
+                              )}
+                              {avgHeartrate != null && (
+                                <ActivityDetailStat
+                                  label="Avg heart rate"
+                                  value={`${Math.round(avgHeartrate)} bpm`}
+                                  colorClass="border-rose-400/10 bg-rose-400/5 text-rose-300"
+                                />
+                              )}
+                              {avgWatts != null && (
+                                <ActivityDetailStat
+                                  label="Avg power"
+                                  value={`${Math.round(avgWatts)} W`}
+                                  colorClass="border-sky-400/10 bg-sky-400/5 text-sky-300"
+                                />
+                              )}
+                              {calories != null && (
+                                <ActivityDetailStat
+                                  label="Calories"
+                                  value={`${Math.round(calories)} cal`}
+                                  colorClass="border-orange-400/10 bg-orange-400/5 text-orange-300"
+                                />
+                              )}
+                              {!hasDetails && (
+                                <p className="col-span-full text-sm text-slate-400">No additional details available for this activity.</p>
+                              )}
                             </div>
-                            <div className="rounded-2xl bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-500">
-                              Effort {calculateEffortScore(activity.raw_json)}
-                            </div>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                   {(hasMoreActivities || visibleActivityCount > ACTIVITIES_PAGE_SIZE) && (
                     <div className="mt-4 flex justify-center gap-3">

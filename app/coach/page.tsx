@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
+import { formatRelativeTime } from "@/src/lib/formatRelativeTime";
 import Protected from "../components/Protected";
 
 type WeeklyTrend = {
@@ -127,6 +128,18 @@ function formatMovingTime(minutes: number | null) {
 
 function getWeekLabel(startDate: string, endDate: string) {
   return `${formatDate(startDate)} — ${formatDate(endDate)}`;
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return value;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function formatTrendDirection(direction: WeeklyTrend["direction"]) {
@@ -273,6 +286,11 @@ export default function CoachPage() {
                   <p className="mt-3 text-lg text-slate-300">
                     Generate a new weekly coaching report based on your latest 12 weeks of activity and current goals.
                   </p>
+                  {latestReport && (
+                    <p className="mt-2 text-xs text-slate-500" title={formatDateTime(latestReport.created_at)}>
+                      Last generated {formatRelativeTime(latestReport.created_at)}
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={createWeeklyReport}

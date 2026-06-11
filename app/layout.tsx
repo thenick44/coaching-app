@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Nick's Coaching App",
-  description: "Your personal cycling and endurance coach",
+  title: "Training Signals",
+  description: "Outdoor training insights for cyclists and runners",
 };
 
 export default function RootLayout({

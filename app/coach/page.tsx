@@ -295,7 +295,7 @@ export default function CoachPage() {
                 <button
                   onClick={createWeeklyReport}
                   disabled={creating}
-                  className="inline-flex items-center justify-center rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center justify-center rounded-full bg-lime-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-lime-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {creating ? "Generating..." : "Generate report"}
                 </button>
@@ -484,7 +484,7 @@ export default function CoachPage() {
                         <p className="text-sm uppercase tracking-[0.28em] text-slate-400">{getWeekLabel(report.report_week_start, report.report_week_end)}</p>
                         <p className="mt-2 text-base leading-7 text-slate-300">{report.report_summary ?? "No summary available."}</p>
                         {report.goal_analysis?.countdown && (
-                          <p className="mt-2 inline-block rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">
+                          <p className="mt-2 inline-block rounded-full bg-lime-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-lime-300">
                             {report.goal_analysis.countdown}
                           </p>
                         )}

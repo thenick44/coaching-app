@@ -150,7 +150,7 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/95 px-6 py-4 backdrop-blur-xl">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-6">
-        <div className="text-lg font-semibold">Nick&apos;s Coaching App</div>
+        <div className="text-lg font-semibold">Training Signals</div>
 
         <nav className="hidden items-center gap-4 lg:flex">
           <div ref={navRef} className="flex flex-wrap items-center gap-1 text-sm font-medium text-slate-200">

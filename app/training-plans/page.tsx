@@ -47,7 +47,7 @@ type GoalOption = {
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const WORKOUT_TYPE_STYLES: Record<WorkoutType, string> = {
-  Endurance: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
+  Endurance: "border-lime-500/30 bg-lime-500/10 text-lime-300",
   Tempo: "border-amber-500/30 bg-amber-500/10 text-amber-300",
   Threshold: "border-orange-500/30 bg-orange-500/10 text-orange-300",
   VO2: "border-red-500/30 bg-red-500/10 text-red-300",
@@ -60,7 +60,7 @@ type CheckInTone = "positive" | "neutral" | "supportive";
 
 const CHECKIN_TONE_STYLES: Record<CheckInTone, string> = {
   positive: "border-emerald-500/30 bg-emerald-950/30 text-emerald-200",
-  neutral: "border-cyan-500/30 bg-cyan-950/30 text-cyan-200",
+  neutral: "border-lime-500/30 bg-lime-950/30 text-lime-200",
   supportive: "border-amber-500/30 bg-amber-950/30 text-amber-200",
 };
 
@@ -597,7 +597,7 @@ export default function TrainingPlansPage() {
             <button
               type="button"
               onClick={() => setShowGenerateForm((value) => !value)}
-              className="inline-flex items-center justify-center rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+              className="inline-flex items-center justify-center rounded-full bg-lime-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-lime-400"
             >
               {showGenerateForm ? "Cancel" : "New plan"}
             </button>
@@ -641,7 +641,7 @@ export default function TrainingPlansPage() {
                       onClick={() => toggleDay(index)}
                       className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
                         availableDays.includes(index)
-                          ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-200"
+                          ? "border-lime-500/50 bg-lime-500/20 text-lime-200"
                           : "border-white/10 bg-transparent text-slate-400 hover:bg-white/5"
                       }`}
                     >
@@ -655,7 +655,7 @@ export default function TrainingPlansPage() {
                 <button
                   type="submit"
                   disabled={generating}
-                  className="inline-flex items-center justify-center rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center justify-center rounded-full bg-lime-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-lime-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {generating ? "Generating..." : "Generate plan"}
                 </button>
@@ -683,7 +683,7 @@ export default function TrainingPlansPage() {
                   onClick={() => setSelectedPlanId(plan.id)}
                   className={`rounded-2xl border p-4 text-left text-sm transition ${
                     plan.id === selectedPlanId
-                      ? "border-cyan-500/50 bg-cyan-500/10 text-white"
+                      ? "border-lime-500/50 bg-lime-500/10 text-white"
                       : "border-white/10 bg-slate-950/80 text-slate-300 hover:bg-slate-950"
                   }`}
                 >
@@ -742,7 +742,7 @@ export default function TrainingPlansPage() {
                   <button
                     type="button"
                     onClick={() => setShowAdjustForm((value) => !value)}
-                    className="inline-flex items-center justify-center rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                    className="inline-flex items-center justify-center rounded-full bg-lime-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-lime-400"
                   >
                     {showAdjustForm ? "Cancel" : "Adjust plan"}
                   </button>
@@ -769,7 +769,7 @@ export default function TrainingPlansPage() {
                       <button
                         type="submit"
                         disabled={adjusting}
-                        className="inline-flex items-center justify-center rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center justify-center rounded-full bg-lime-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-lime-400 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {adjusting ? "Adjusting..." : "Adjust plan"}
                       </button>
@@ -784,7 +784,7 @@ export default function TrainingPlansPage() {
                 type="button"
                 onClick={() => setView("calendar")}
                 className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  view === "calendar" ? "bg-cyan-500 text-slate-950" : "bg-white/5 text-slate-300 hover:bg-white/10"
+                  view === "calendar" ? "bg-lime-500 text-slate-950" : "bg-white/5 text-slate-300 hover:bg-white/10"
                 }`}
               >
                 Calendar
@@ -793,7 +793,7 @@ export default function TrainingPlansPage() {
                 type="button"
                 onClick={() => setView("weekly")}
                 className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  view === "weekly" ? "bg-cyan-500 text-slate-950" : "bg-white/5 text-slate-300 hover:bg-white/10"
+                  view === "weekly" ? "bg-lime-500 text-slate-950" : "bg-white/5 text-slate-300 hover:bg-white/10"
                 }`}
               >
                 Weekly
@@ -844,7 +844,7 @@ export default function TrainingPlansPage() {
                         className={`flex min-h-[56px] flex-col items-start rounded-xl border p-1 text-left text-[10px] transition sm:min-h-[88px] sm:rounded-2xl sm:p-2 sm:text-xs ${
                           isCurrentMonth ? "border-white/10 bg-slate-950/80" : "border-white/5 bg-slate-950/40"
                         } ${workout ? "cursor-pointer hover:bg-slate-900" : "cursor-default"} ${
-                          workout && selectedWorkoutId === workout.id ? "ring-2 ring-cyan-400" : ""
+                          workout && selectedWorkoutId === workout.id ? "ring-2 ring-lime-400" : ""
                         }`}
                       >
                         <span className={isCurrentMonth ? "text-slate-300" : "text-slate-600"}>{date.getDate()}</span>
@@ -883,7 +883,7 @@ export default function TrainingPlansPage() {
                                 onClick={() => setSelectedWorkoutId(workout.id)}
                                 className={`flex w-full flex-col gap-2 rounded-2xl border p-4 text-left text-sm transition sm:flex-row sm:items-center sm:justify-between ${
                                   selectedWorkoutId === workout.id
-                                    ? "border-cyan-500/50 bg-cyan-500/10"
+                                    ? "border-lime-500/50 bg-lime-500/10"
                                     : "border-white/10 bg-slate-950/80 hover:bg-slate-950"
                                 }`}
                               >
@@ -943,7 +943,7 @@ export default function TrainingPlansPage() {
                     className={`inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                       selectedWorkout.completed
                         ? "bg-slate-700 text-white hover:bg-slate-600"
-                        : "bg-cyan-500 text-slate-950 hover:bg-cyan-400"
+                        : "bg-lime-500 text-slate-950 hover:bg-lime-400"
                     }`}
                   >
                     {savingWorkoutId === selectedWorkout.id

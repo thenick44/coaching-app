@@ -57,7 +57,7 @@ export default function Home() {
               Cycling & endurance coaching
             </p>
             <h1 className="text-4xl font-semibold leading-tight text-white sm:text-5xl">
-              Nick&apos;s Coaching App
+              Training Signals
             </h1>
             <p className="max-w-xl text-lg leading-8 text-slate-300 sm:text-xl">
               Your personal cycling and endurance coach — built for athletes who want smarter training, better insights, and race-ready results.
@@ -66,14 +66,14 @@ export default function Home() {
               {signedIn ? (
                 <Link
                   href="/dashboard"
-                  className="inline-flex items-center justify-center rounded-full bg-cyan-500 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                  className="inline-flex items-center justify-center rounded-full bg-lime-500 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-lime-400"
                 >
                   Go to Dashboard
                 </Link>
               ) : (
                 <Link
                   href="/login"
-                  className="inline-flex items-center justify-center rounded-full bg-cyan-500 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                  className="inline-flex items-center justify-center rounded-full bg-lime-500 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-lime-400"
                 >
                   Sign In
                 </Link>

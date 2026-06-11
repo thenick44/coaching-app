@@ -457,7 +457,7 @@ export default function GoalsPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="inline-flex items-center justify-center rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center justify-center rounded-full bg-lime-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-lime-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {submitting ? "Saving..." : editingId ? "Save changes" : "Add goal"}
               </button>

@@ -598,7 +598,7 @@ export default function DashboardPage() {
                               </p>
                             </div>
                             <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                              <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-300">
+                              <span className="rounded-full border border-lime-400/20 bg-lime-400/10 px-3 py-1 text-xs font-medium text-lime-300">
                                 {activity.raw_json?.distance != null
                                   ? `${metersToMiles(activity.raw_json.distance).toFixed(1)} mi`
                                   : "—"}

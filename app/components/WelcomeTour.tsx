@@ -10,7 +10,7 @@ const sections: WelcomeSection[] = [
   {
     title: "Dashboard",
     description: "Your home base — weekly summary, recent activities, and 14-day trends at a glance.",
-    colorClass: "border-cyan-400/20 bg-cyan-400/10 text-cyan-300",
+    colorClass: "border-lime-400/20 bg-lime-400/10 text-lime-300",
   },
   {
     title: "Fitness Trends",
@@ -44,7 +44,7 @@ export default function WelcomeTour({ onDismiss }: { onDismiss: () => void }) {
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl shadow-black/40 sm:p-8">
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">Welcome</p>
-        <h2 className="mt-2 text-3xl font-semibold text-white">Welcome to Nick&apos;s Coaching App!</h2>
+        <h2 className="mt-2 text-3xl font-semibold text-white">Welcome to Training Signals!</h2>
         <p className="mt-3 text-base leading-7 text-slate-300">
           Here&apos;s a quick look at where to find things. Use the navigation bar at the top to jump
           between these sections any time.

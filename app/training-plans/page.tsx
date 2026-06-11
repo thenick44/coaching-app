@@ -617,13 +617,13 @@ export default function TrainingPlansPage() {
                   </button>
                 </div>
 
-                <div className="mt-6 grid grid-cols-7 gap-2 text-center text-xs uppercase tracking-[0.2em] text-slate-500">
+                <div className="mt-6 grid grid-cols-7 gap-1 text-center text-[10px] uppercase tracking-[0.1em] text-slate-500 sm:gap-2 sm:text-xs sm:tracking-[0.2em]">
                   {WEEKDAY_LABELS.map((label) => (
                     <div key={label}>{label}</div>
                   ))}
                 </div>
 
-                <div className="mt-2 grid grid-cols-7 gap-2">
+                <div className="mt-2 grid grid-cols-7 gap-1 sm:gap-2">
                   {monthGrid.map((date) => {
                     const dateStr = getLocalDateString(date);
                     const workout = workoutsByDate.get(dateStr);
@@ -634,7 +634,7 @@ export default function TrainingPlansPage() {
                         key={dateStr}
                         onClick={() => workout && setSelectedWorkoutId(workout.id)}
                         disabled={!workout}
-                        className={`flex min-h-[88px] flex-col items-start rounded-2xl border p-2 text-left text-xs transition ${
+                        className={`flex min-h-[56px] flex-col items-start rounded-xl border p-1 text-left text-[10px] transition sm:min-h-[88px] sm:rounded-2xl sm:p-2 sm:text-xs ${
                           isCurrentMonth ? "border-white/10 bg-slate-950/80" : "border-white/5 bg-slate-950/40"
                         } ${workout ? "cursor-pointer hover:bg-slate-900" : "cursor-default"} ${
                           workout && selectedWorkoutId === workout.id ? "ring-2 ring-cyan-400" : ""
@@ -643,7 +643,7 @@ export default function TrainingPlansPage() {
                         <span className={isCurrentMonth ? "text-slate-300" : "text-slate-600"}>{date.getDate()}</span>
                         {workout && (
                           <span
-                            className={`mt-1 w-full truncate rounded-md border px-2 py-1 text-[11px] font-semibold ${WORKOUT_TYPE_STYLES[workout.workout_type]} ${
+                            className={`mt-1 w-full truncate rounded-md border px-1 py-0.5 text-[9px] font-semibold sm:px-2 sm:py-1 sm:text-[11px] ${WORKOUT_TYPE_STYLES[workout.workout_type]} ${
                               workout.completed ? "opacity-60" : ""
                             }`}
                           >

@@ -360,7 +360,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
                     <p className="text-xs uppercase tracking-[0.28em] text-slate-500">14-day distance</p>
-                    <div className="mt-4 grid h-36 grid-cols-14 gap-1">
+                    <div className="mt-4 grid h-36 grid-cols-14 gap-0.5 sm:gap-1">
                       {dailyDistances.map((item) => {
                         const height = item.distance ? Math.min(100, (item.distance / 1609.34) * 4) : 2;
                         return (
@@ -374,11 +374,9 @@ export default function DashboardPage() {
                         );
                       })}
                     </div>
-                    <div className="mt-3 grid grid-cols-7 gap-1 text-[10px] text-slate-500">
+                    <div className="mt-3 grid grid-cols-14 gap-0.5 text-center text-[8px] text-slate-500 sm:gap-1 sm:text-[10px]">
                       {dailyDistances.map((item) => (
-                        <span key={item.date.toISOString()} className="text-center">
-                          {formatDailyChartLabel(item.date)}
-                        </span>
+                        <span key={item.date.toISOString()}>{formatDailyChartLabel(item.date)}</span>
                       ))}
                     </div>
                   </div>

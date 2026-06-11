@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
 import Protected from "../components/Protected";
 import type { WorkoutType } from "@/src/lib/trainingPlanGenerator";
+import { getWeekEnd, getWeekStart } from "@/src/lib/activityMetrics";
 
 type TrainingPlanWorkout = {
   id: string;
@@ -55,6 +56,14 @@ const WORKOUT_TYPE_STYLES: Record<WorkoutType, string> = {
   "Long Ride": "border-blue-500/30 bg-blue-500/10 text-blue-300",
 };
 
+type CheckInTone = "positive" | "neutral" | "supportive";
+
+const CHECKIN_TONE_STYLES: Record<CheckInTone, string> = {
+  positive: "border-emerald-500/30 bg-emerald-950/30 text-emerald-200",
+  neutral: "border-cyan-500/30 bg-cyan-950/30 text-cyan-200",
+  supportive: "border-amber-500/30 bg-amber-950/30 text-amber-200",
+};
+
 function getLocalDateString(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -91,6 +100,59 @@ function formatDistance(value: number | null) {
 
 function formatElevation(value: number | null) {
   return value != null ? `${value} ft` : "—";
+}
+
+function getEncouragementMessage(
+  completed: number,
+  total: number,
+  today: Date
+): { message: string; tone: CheckInTone; suggestAdjust: boolean } {
+  if (total === 0) {
+    return { message: "No workouts are scheduled for this week.", tone: "neutral", suggestAdjust: false };
+  }
+
+  if (completed === total) {
+    return {
+      message: `You've completed all ${total} workout${total === 1 ? "" : "s"} for this week. Great work staying on track!`,
+      tone: "positive",
+      suggestAdjust: false,
+    };
+  }
+
+  const dayOfWeek = today.getDay();
+
+  if (completed === 0 && dayOfWeek <= 1) {
+    return {
+      message: `This week's plan has ${total} workout${total === 1 ? "" : "s"} lined up. Let's get started!`,
+      tone: "neutral",
+      suggestAdjust: false,
+    };
+  }
+
+  const expectedProgress = (dayOfWeek + 1) / 7;
+  const actualProgress = completed / total;
+
+  if (actualProgress + 0.15 >= expectedProgress) {
+    return {
+      message: `You're ${completed} of ${total} done this week — right on pace. Keep it up!`,
+      tone: "positive",
+      suggestAdjust: false,
+    };
+  }
+
+  if (dayOfWeek >= 4) {
+    return {
+      message: `You've completed ${completed} of ${total} workouts this week. If something came up, use "Adjust remaining plan" below to rebalance your schedule.`,
+      tone: "supportive",
+      suggestAdjust: true,
+    };
+  }
+
+  return {
+    message: `You're ${completed} of ${total} done this week. There's still time to catch up — you've got this!`,
+    tone: "supportive",
+    suggestAdjust: false,
+  };
 }
 
 function addMonths(date: Date, months: number) {
@@ -170,6 +232,10 @@ export default function TrainingPlansPage() {
   const [availableDays, setAvailableDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [startDate, setStartDate] = useState(() => getLocalDateString(new Date()));
   const [generating, setGenerating] = useState(false);
+
+  const [showAdjustForm, setShowAdjustForm] = useState(false);
+  const [restDaysInput, setRestDaysInput] = useState("0");
+  const [adjusting, setAdjusting] = useState(false);
 
   async function getAuthHeaders(): Promise<Record<string, string>> {
     if (!supabase) return {};
@@ -347,6 +413,71 @@ export default function TrainingPlansPage() {
     setGenerating(false);
   }
 
+  async function handleAdjustPlan(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase || !selectedPlanId) {
+      setError("Supabase is not configured.");
+      return;
+    }
+
+    const restDays = Math.min(14, Math.max(0, Math.round(Number(restDaysInput) || 0)));
+
+    setAdjusting(true);
+    setError(null);
+    setSuccess(null);
+
+    const headers = {
+      "Content-Type": "application/json",
+      ...(await getAuthHeaders()),
+    };
+
+    const response = await fetch(`/api/training_plans/${selectedPlanId}/adjust`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ rest_days: restDays }),
+    });
+
+    const result = await response.json().catch(() => null);
+
+    if (!mounted.current) return;
+
+    if (!response.ok) {
+      setError(result?.error || "Failed to adjust training plan.");
+      setAdjusting(false);
+      return;
+    }
+
+    const updatedPlan = result?.plan as TrainingPlan | undefined;
+    const updatedWorkouts = (result?.workouts ?? []) as TrainingPlanWorkout[];
+
+    if (updatedPlan) {
+      setPlans((prev) =>
+        prev.map((plan) =>
+          plan.id === updatedPlan.id
+            ? {
+                ...updatedPlan,
+                completed_count: updatedWorkouts.filter((workout) => workout.completed).length,
+                total_count: updatedWorkouts.length,
+              }
+            : plan
+        )
+      );
+      setWorkouts(updatedWorkouts);
+      setSelectedWorkoutId(null);
+      setSuccess(
+        restDays > 0
+          ? `Plan adjusted with ${restDays} rest day${restDays === 1 ? "" : "s"}.`
+          : "Plan adjusted based on your recent training."
+      );
+      setShowAdjustForm(false);
+      setRestDaysInput("0");
+    } else {
+      setError("Plan adjusted, but the response did not include plan data.");
+    }
+
+    setAdjusting(false);
+  }
+
   async function updateWorkout(workoutId: string, updates: { completed?: boolean; notes?: string }) {
     setSavingWorkoutId(workoutId);
     setError(null);
@@ -403,6 +534,18 @@ export default function TrainingPlansPage() {
 
   const selectedPlan = plans.find((plan) => plan.id === selectedPlanId) ?? null;
   const selectedWorkout = workouts.find((workout) => workout.id === selectedWorkoutId) ?? null;
+
+  const today = new Date();
+  const weekStart = getWeekStart(today);
+  const weekEnd = getWeekEnd(weekStart);
+  const weekStartStr = getLocalDateString(weekStart);
+  const weekEndStr = getLocalDateString(weekEnd);
+  const thisWeekWorkouts = workouts.filter(
+    (workout) => workout.scheduled_date >= weekStartStr && workout.scheduled_date <= weekEndStr
+  );
+  const completedThisWeek = thisWeekWorkouts.filter((workout) => workout.completed).length;
+  const totalThisWeek = thisWeekWorkouts.length;
+  const checkIn = getEncouragementMessage(completedThisWeek, totalThisWeek, today);
 
   const workoutsByDate = new Map<string, TrainingPlanWorkout>();
   workouts.forEach((workout) => workoutsByDate.set(workout.scheduled_date, workout));
@@ -562,6 +705,80 @@ export default function TrainingPlansPage() {
 
         {selectedPlan && (
           <>
+            {!workoutsLoading && selectedPlan.status === "active" && (
+              <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-lg shadow-black/20 sm:p-8">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.28em] text-slate-400">This week&apos;s check-in</p>
+                    <p className="mt-3 text-sm leading-6 text-slate-300">
+                      {formatShortDate(weekStartStr)} – {formatShortDate(weekEndStr)} · {completedThisWeek} of {totalThisWeek} workouts complete
+                    </p>
+                  </div>
+                  {checkIn.suggestAdjust && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAdjustForm(true)}
+                      className="inline-flex items-center justify-center rounded-full bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+                    >
+                      Adjust remaining plan
+                    </button>
+                  )}
+                </div>
+                <div className={`mt-4 rounded-2xl border p-4 text-sm leading-6 ${CHECKIN_TONE_STYLES[checkIn.tone]}`}>
+                  {checkIn.message}
+                </div>
+              </div>
+            )}
+
+            {!workoutsLoading && selectedPlan.status === "active" && (
+              <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-lg shadow-black/20 sm:p-8">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.28em] text-slate-400">Adjust remaining plan</p>
+                    <p className="mt-3 text-sm leading-6 text-slate-300">
+                      Recompute the rest of your plan from your recent training load and readiness. Add rest days if you&apos;ve been sick, injured, or away — your plan will pick back up afterward.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdjustForm((value) => !value)}
+                    className="inline-flex items-center justify-center rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                  >
+                    {showAdjustForm ? "Cancel" : "Adjust plan"}
+                  </button>
+                </div>
+
+                {showAdjustForm && (
+                  <form onSubmit={handleAdjustPlan} className="mt-6 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm text-slate-300">Days off (illness, injury, travel, etc.)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={14}
+                        value={restDaysInput}
+                        onChange={(e) => setRestDaysInput(e.target.value)}
+                        className="w-full rounded-md border border-white/10 bg-transparent px-4 py-2 text-white placeholder:text-slate-400"
+                      />
+                      <p className="mt-2 text-xs text-slate-400">
+                        We&apos;ll add this many rest days starting today, then rebuild the rest of your plan around your current training load and readiness.
+                      </p>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <button
+                        type="submit"
+                        disabled={adjusting}
+                        className="inline-flex items-center justify-center rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {adjusting ? "Adjusting..." : "Adjust plan"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <button
                 type="button"

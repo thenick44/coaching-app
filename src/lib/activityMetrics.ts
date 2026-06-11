@@ -36,6 +36,40 @@ export function secondsToMinutes(seconds: number) {
   return seconds / 60;
 }
 
+function toFiniteNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * Estimates a relative "effort" score for an activity so rides/runs can be
+ * compared on a single training-load axis even when Strava doesn't return
+ * the same metrics for every activity. Prefers (in order): Strava's own
+ * Relative Effort (suffer_score), a heart-rate based load, a power-based
+ * load, falling back to a distance/elevation/duration estimate.
+ */
+export function calculateEffortScore(raw: ActivityRecord["raw_json"] | undefined | null): number {
+  if (!raw) return 0;
+
+  const movingTimeMinutes = secondsToMinutes(toFiniteNumber(raw.moving_time));
+
+  const sufferScore = toFiniteNumber(raw.suffer_score);
+  if (sufferScore > 0) return Math.round(sufferScore);
+
+  const avgHeartrate = toFiniteNumber(raw.average_heartrate);
+  if (avgHeartrate > 0 && movingTimeMinutes > 0) {
+    return Math.round(movingTimeMinutes * (avgHeartrate / 100));
+  }
+
+  const avgWatts = toFiniteNumber(raw.average_watts);
+  if (avgWatts > 0 && movingTimeMinutes > 0) {
+    return Math.round((avgWatts * movingTimeMinutes) / 100);
+  }
+
+  const distanceMiles = metersToMiles(toFiniteNumber(raw.distance));
+  const elevationFeet = metersToFeet(toFiniteNumber(raw.total_elevation_gain));
+  return Math.round(distanceMiles + elevationFeet / 100 + movingTimeMinutes * 0.5);
+}
+
 export function getWeekStart(date: Date) {
   const weekStart = new Date(date);
   weekStart.setHours(0, 0, 0, 0);

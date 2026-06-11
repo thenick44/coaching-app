@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
+import { calculateEffortScore } from "@/src/lib/activityMetrics";
 import Protected from "../components/Protected";
 import StravaSyncButton from "../components/StravaSyncButton";
 
@@ -153,6 +154,40 @@ function getLastNDaysDistance(activities: DashboardActivity[], days: number, ref
   }));
 }
 
+function getLastNDaysEffort(activities: DashboardActivity[], days: number, referenceDate: Date) {
+  const dailyTotals: Record<string, number> = {};
+  const result: Array<{ date: Date; effort: number }> = [];
+
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(referenceDate);
+    date.setHours(0, 0, 0, 0);
+    date.setDate(referenceDate.getDate() - i);
+    const key = date.toISOString().slice(0, 10);
+    dailyTotals[key] = 0;
+    result.push({ date: new Date(date), effort: 0 });
+  }
+
+  activities.forEach((activity) => {
+    const activityDate = activity.raw_json?.start_date
+      ? new Date(activity.raw_json.start_date)
+      : null;
+    if (!activityDate || Number.isNaN(activityDate.valueOf())) return;
+
+    const day = new Date(activityDate);
+    day.setHours(0, 0, 0, 0);
+    const key = day.toISOString().slice(0, 10);
+
+    if (key in dailyTotals) {
+      dailyTotals[key] += calculateEffortScore(activity.raw_json);
+    }
+  });
+
+  return result.map((entry) => ({
+    date: entry.date,
+    effort: dailyTotals[entry.date.toISOString().slice(0, 10)] ?? 0,
+  }));
+}
+
 function formatDifferenceValue(value: number) {
   const sign = value > 0 ? "+" : "";
   return `${sign}${value}`;
@@ -191,11 +226,14 @@ async function fetchDashboardData(): Promise<{ data?: DashboardPayload; error?: 
   return { data: payload as DashboardPayload };
 }
 
+const ACTIVITIES_PAGE_SIZE = 8;
+
 export default function DashboardPage() {
   const mounted = useRef(true);
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<DashboardPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [visibleActivityCount, setVisibleActivityCount] = useState(ACTIVITIES_PAGE_SIZE);
 
   useEffect(() => {
     mounted.current = true;
@@ -276,8 +314,10 @@ export default function DashboardPage() {
     count: currentWeekSummary.count - lastWeekSummary.count,
   };
 
-  const recentActivities = sortedActivities.slice(0, 8);
+  const recentActivities = sortedActivities.slice(0, visibleActivityCount);
+  const hasMoreActivities = visibleActivityCount < sortedActivities.length;
   const dailyDistances = getLastNDaysDistance(primaryActivities, 14, today);
+  const dailyEffort = getLastNDaysEffort(primaryActivities, 14, today);
 
   return (
     <Protected>
@@ -320,7 +360,7 @@ export default function DashboardPage() {
             <div className="grid gap-6">
               <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-lg shadow-black/20 sm:p-8">
                 <p className="text-sm uppercase tracking-[0.28em] text-slate-400">Training summary</p>
-                <div className="mt-4 grid gap-4 sm:grid-cols-4">
+                <div className="mt-4 grid gap-4 sm:grid-cols-3">
                   <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
                     <p className="text-xs uppercase tracking-[0.28em] text-slate-500">This week</p>
                     <p className="mt-3 text-sm text-slate-400">Distance</p>
@@ -354,6 +394,8 @@ export default function DashboardPage() {
                     <p className="mt-3 text-sm text-slate-400">Activities</p>
                     <p className="text-xl font-semibold text-white">{formatDifferenceValue(diffSummary.count)}</p>
                   </div>
+                </div>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
                     <p className="text-xs uppercase tracking-[0.28em] text-slate-500">14-day distance</p>
                     <div className="mt-4 grid h-36 grid-cols-[repeat(14,minmax(0,1fr))] gap-0.5 sm:gap-1">
@@ -372,6 +414,28 @@ export default function DashboardPage() {
                     </div>
                     <div className="mt-3 grid grid-cols-[repeat(14,minmax(0,1fr))] gap-0.5 text-center text-[8px] text-slate-500 sm:gap-1 sm:text-[10px]">
                       {dailyDistances.map((item) => (
+                        <span key={item.date.toISOString()}>{formatDailyChartLabel(item.date)}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">14-day training load</p>
+                    <div className="mt-4 grid h-36 grid-cols-[repeat(14,minmax(0,1fr))] gap-0.5 sm:gap-1">
+                      {dailyEffort.map((item) => {
+                        const height = item.effort ? Math.min(100, item.effort / 2) : 2;
+                        return (
+                          <div key={item.date.toISOString()} className="relative flex items-end justify-center">
+                            <div
+                              className="w-full rounded-t-lg bg-amber-500"
+                              style={{ height: `${Math.max(2, height)}%` }}
+                              title={`${formatActivityDate(item.date.toISOString())}: ${item.effort} effort`}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 grid grid-cols-[repeat(14,minmax(0,1fr))] gap-0.5 text-center text-[8px] text-slate-500 sm:gap-1 sm:text-[10px]">
+                      {dailyEffort.map((item) => (
                         <span key={item.date.toISOString()}>{formatDailyChartLabel(item.date)}</span>
                       ))}
                     </div>
@@ -446,33 +510,60 @@ export default function DashboardPage() {
             <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-lg shadow-black/20 sm:p-8">
               <p className="text-sm uppercase tracking-[0.28em] text-slate-400">Recent activities</p>
               {recentActivities.length ? (
-                <ul className="mt-4 space-y-4">
-                  {recentActivities.map((activity) => (
-                    <li key={activity.strava_activity_id} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="font-semibold text-white">{activity.raw_json?.name || "Unnamed activity"}</p>
-                          <p className="text-sm text-slate-400">{formatActivityDate(activity.raw_json?.start_date)}</p>
+                <>
+                  <ul className="mt-4 max-h-[32rem] space-y-4 overflow-y-auto pr-1">
+                    {recentActivities.map((activity) => (
+                      <li key={activity.strava_activity_id} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="font-semibold text-white">{activity.raw_json?.name || "Unnamed activity"}</p>
+                            <p className="text-sm text-slate-400">{formatActivityDate(activity.raw_json?.start_date)}</p>
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-4">
+                            <div className="rounded-2xl bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-500">
+                              {activity.raw_json?.type || activity.raw_json?.sport_type || "Unknown"}
+                            </div>
+                            <div className="rounded-2xl bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-500">
+                              {activity.raw_json?.distance != null
+                                ? `${metersToMiles(activity.raw_json.distance).toFixed(1)} mi`
+                                : "—"}
+                            </div>
+                            <div className="rounded-2xl bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-500">
+                              {activity.raw_json?.moving_time != null
+                                ? secondsToHoursMinutes(activity.raw_json.moving_time)
+                                : "—"}
+                            </div>
+                            <div className="rounded-2xl bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-500">
+                              Effort {calculateEffortScore(activity.raw_json)}
+                            </div>
+                          </div>
                         </div>
-                        <div className="grid gap-2 sm:grid-cols-3">
-                          <div className="rounded-2xl bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-500">
-                            {activity.raw_json?.type || activity.raw_json?.sport_type || "Unknown"}
-                          </div>
-                          <div className="rounded-2xl bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-500">
-                            {activity.raw_json?.distance != null
-                              ? `${metersToMiles(activity.raw_json.distance).toFixed(1)} mi`
-                              : "—"}
-                          </div>
-                          <div className="rounded-2xl bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-500">
-                            {activity.raw_json?.moving_time != null
-                              ? secondsToHoursMinutes(activity.raw_json.moving_time)
-                              : "—"}
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                      </li>
+                    ))}
+                  </ul>
+                  {(hasMoreActivities || visibleActivityCount > ACTIVITIES_PAGE_SIZE) && (
+                    <div className="mt-4 flex justify-center gap-3">
+                      {hasMoreActivities && (
+                        <button
+                          type="button"
+                          onClick={() => setVisibleActivityCount((count) => count + ACTIVITIES_PAGE_SIZE)}
+                          className="rounded-full bg-white/6 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                        >
+                          Load more
+                        </button>
+                      )}
+                      {visibleActivityCount > ACTIVITIES_PAGE_SIZE && (
+                        <button
+                          type="button"
+                          onClick={() => setVisibleActivityCount(ACTIVITIES_PAGE_SIZE)}
+                          className="rounded-full bg-white/6 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                        >
+                          Show less
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
               ) : (
                 <p className="mt-4 text-sm text-slate-400">No activities available yet.</p>
               )}

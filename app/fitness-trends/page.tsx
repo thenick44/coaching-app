@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
+import { calculateEffortScore } from "@/src/lib/activityMetrics";
 import Protected from "../components/Protected";
 import StravaSyncButton from "../components/StravaSyncButton";
 
@@ -51,6 +52,7 @@ type WeeklyTotals = {
   distance: number;
   elevation: number;
   movingTime: number;
+  effort: number;
 };
 
 function metersToMiles(meters: number) {
@@ -87,6 +89,7 @@ function buildWeeklySeries(activities: DashboardActivity[], weeks: number, refer
       distance: 0,
       elevation: 0,
       movingTime: 0,
+      effort: 0,
     };
     series.push(data);
     weeklyMap[key] = data;
@@ -104,6 +107,7 @@ function buildWeeklySeries(activities: DashboardActivity[], weeks: number, refer
     totals.distance += activity.raw_json?.distance ?? 0;
     totals.elevation += activity.raw_json?.total_elevation_gain ?? 0;
     totals.movingTime += activity.raw_json?.moving_time ?? 0;
+    totals.effort += calculateEffortScore(activity.raw_json);
   });
 
   return series;
@@ -286,14 +290,17 @@ export default function FitnessTrendsPage() {
   const distanceValues = weeklySeries.map((week) => metersToMiles(week.distance));
   const elevationValues = weeklySeries.map((week) => metersToFeet(week.elevation));
   const timeValues = weeklySeries.map((week) => week.movingTime / 3600);
+  const effortValues = weeklySeries.map((week) => week.effort);
 
   const distanceAverage = rollingAverage(distanceValues, 4);
   const elevationAverage = rollingAverage(elevationValues, 4);
   const timeAverage = rollingAverage(timeValues, 4);
+  const effortAverage = rollingAverage(effortValues, 4);
 
   const bestDistanceIndex = distanceValues.indexOf(Math.max(...distanceValues));
   const bestElevationIndex = elevationValues.indexOf(Math.max(...elevationValues));
   const bestTimeIndex = timeValues.indexOf(Math.max(...timeValues));
+  const bestEffortIndex = effortValues.indexOf(Math.max(...effortValues));
 
   return (
     <Protected>
@@ -345,6 +352,14 @@ export default function FitnessTrendsPage() {
               averageValues={timeAverage}
               units="h"
               highlightIndex={bestTimeIndex}
+            />
+
+            <FitnessTrendChart
+              title="Weekly training load"
+              values={effortValues}
+              averageValues={effortAverage}
+              units="effort pts"
+              highlightIndex={bestEffortIndex}
             />
           </div>
         )}

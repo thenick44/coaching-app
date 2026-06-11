@@ -63,13 +63,13 @@ export default function Header() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-6">
         <div className="text-lg font-semibold">Nick&apos;s Coaching App</div>
 
-        <nav className="hidden items-center gap-4 sm:flex">
-          <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-200">
+        <nav className="hidden items-center gap-4 lg:flex">
+          <div className="flex flex-wrap items-center gap-1 text-sm font-medium text-slate-200">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-full px-4 py-2 transition hover:bg-white/10 hover:text-white"
+                className="rounded-full px-3 py-2 transition hover:bg-white/10 hover:text-white"
               >
                 {item.label}
               </Link>
@@ -79,7 +79,7 @@ export default function Header() {
           <div className="ml-3 flex items-center gap-3">
             {userEmail ? (
               <>
-                <span className="hidden rounded-full px-3 py-2 text-sm text-slate-300 lg:inline-block">
+                <span className="hidden rounded-full px-3 py-2 text-sm text-slate-300 xl:inline-block">
                   {userEmail}
                 </span>
                 <button
@@ -105,7 +105,7 @@ export default function Header() {
           onClick={() => setMenuOpen((value) => !value)}
           aria-label="Toggle navigation menu"
           aria-expanded={menuOpen}
-          className="inline-flex items-center justify-center rounded-full p-2 text-slate-200 transition hover:bg-white/10 sm:hidden"
+          className="inline-flex items-center justify-center rounded-full p-2 text-slate-200 transition hover:bg-white/10 lg:hidden"
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             {menuOpen ? (
@@ -125,7 +125,7 @@ export default function Header() {
       </div>
 
       {menuOpen && (
-        <nav className="mx-auto mt-4 flex max-w-6xl flex-col gap-1 sm:hidden">
+        <nav className="mx-auto mt-4 flex max-w-6xl flex-col gap-1 lg:hidden">
           {navItems.map((item) => (
             <Link
               key={item.href}

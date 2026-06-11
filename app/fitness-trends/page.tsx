@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
 import Protected from "../components/Protected";
+import StravaSyncButton from "../components/StravaSyncButton";
 
 type DashboardActivity = {
   strava_activity_id: number;
@@ -20,6 +21,29 @@ type DashboardPayload = {
   activityCount: number;
   activities: DashboardActivity[];
 };
+
+async function fetchDashboardData(): Promise<{ data?: DashboardPayload; error?: string }> {
+  if (!supabase) {
+    return { error: "Supabase is not configured." };
+  }
+
+  const sessionResult = await supabase.auth.getSession();
+  const accessToken = sessionResult.data?.session?.access_token;
+  const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined;
+
+  const response = await fetch("/api/dashboard/data", {
+    method: "GET",
+    headers,
+  });
+
+  const payload = (await response.json().catch(() => null)) as DashboardPayload | { error?: string } | null;
+
+  if (!response.ok) {
+    return { error: (payload as { error?: string } | null)?.error || "Failed to load dashboard data." };
+  }
+
+  return { data: payload as DashboardPayload };
+}
 
 type WeeklyTotals = {
   weekStart: Date;
@@ -223,44 +247,35 @@ export default function FitnessTrendsPage() {
   useEffect(() => {
     mounted.current = true;
 
-    async function loadDashboard() {
-      if (!supabase) {
-        setError("Supabase is not configured.");
-        setLoading(false);
-        return;
-      }
-
-      const sessionResult = await supabase.auth.getSession();
-      const session = sessionResult.data?.session;
-      const accessToken = session?.access_token;
-
-      const headers = accessToken
-        ? { Authorization: `Bearer ${accessToken}` }
-        : undefined;
-
-      const response = await fetch("/api/dashboard/data", {
-        method: "GET",
-        headers,
-      });
-
-      const payload = (await response.json().catch(() => null)) as DashboardPayload | { error?: string } | null;
+    (async () => {
+      const result = await fetchDashboardData();
       if (!mounted.current) return;
 
-      if (!response.ok) {
-        setError((payload as { error?: string } | null)?.error || "Failed to load dashboard data.");
+      if (result.error) {
+        setError(result.error);
         setDashboardData(null);
       } else {
-        setDashboardData(payload as DashboardPayload);
+        setDashboardData(result.data ?? null);
       }
 
       setLoading(false);
-    }
-
-    loadDashboard();
+    })();
 
     return () => {
       mounted.current = false;
     };
+  }, []);
+
+  const refreshDashboard = useCallback(async () => {
+    const result = await fetchDashboardData();
+    if (!mounted.current) return;
+
+    if (result.error) {
+      setError(result.error);
+      setDashboardData(null);
+    } else {
+      setDashboardData(result.data ?? null);
+    }
   }, []);
 
   const activities = dashboardData?.activities ?? [];
@@ -290,6 +305,9 @@ export default function FitnessTrendsPage() {
           <p className="mx-auto max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
             Track weekly progress, rolling averages, and your best training weeks over the last 12 weeks.
           </p>
+          <div className="flex justify-center">
+            <StravaSyncButton onSynced={refreshDashboard} />
+          </div>
         </div>
 
         {error && (

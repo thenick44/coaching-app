@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   const stravaAccessToken = connection.access_token;
 
   const activitiesResponse = await fetch(
-    "https://www.strava.com/api/v3/athlete/activities?per_page=30",
+    "https://www.strava.com/api/v3/athlete/activities?per_page=90",
     {
       headers: {
         Authorization: `Bearer ${stravaAccessToken}`,

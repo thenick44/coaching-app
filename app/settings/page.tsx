@@ -182,12 +182,21 @@ function SettingsContent() {
               <p className="mt-2 text-sm leading-6 text-slate-300">Profile id: {profile?.id ?? "—"}</p>
               <p className="mt-1 text-sm leading-6 text-slate-300">Strava athlete id: {profile?.strava_athlete_id ?? "Not connected"}</p>
               <div className="mt-6 flex flex-wrap items-center gap-3">
-                <a
-                  href={stravaConnectHref}
-                  className="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 font-semibold text-white transition hover:bg-orange-700"
-                >
-                  {profile?.strava_athlete_id ? "Reconnect Strava" : "Connect Strava"}
-                </a>
+                {hasStravaConnection || profile?.strava_athlete_id ? (
+                  <span
+                    aria-disabled="true"
+                    className="inline-flex cursor-not-allowed items-center rounded-lg bg-orange-600/40 px-4 py-2 font-semibold text-white/70"
+                  >
+                    Strava Connected
+                  </span>
+                ) : (
+                  <a
+                    href={stravaConnectHref}
+                    className="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 font-semibold text-white transition hover:bg-orange-700"
+                  >
+                    Connect Strava
+                  </a>
+                )}
                 {showSyncButton && (
                   <button
                     type="button"

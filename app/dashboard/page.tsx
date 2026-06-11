@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
 import Protected from "../components/Protected";
+import StravaSyncButton from "../components/StravaSyncButton";
 
 type DashboardActivity = {
   strava_activity_id: number;
@@ -167,6 +168,29 @@ function formatDailyChartLabel(date: Date) {
   return new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
 }
 
+async function fetchDashboardData(): Promise<{ data?: DashboardPayload; error?: string }> {
+  if (!supabase) {
+    return { error: "Supabase is not configured." };
+  }
+
+  const sessionResult = await supabase.auth.getSession();
+  const accessToken = sessionResult.data?.session?.access_token;
+  const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined;
+
+  const response = await fetch("/api/dashboard/data", {
+    method: "GET",
+    headers,
+  });
+
+  const payload = (await response.json().catch(() => null)) as DashboardPayload | { error?: string } | null;
+
+  if (!response.ok) {
+    return { error: (payload as { error?: string } | null)?.error || "Failed to load dashboard data." };
+  }
+
+  return { data: payload as DashboardPayload };
+}
+
 export default function DashboardPage() {
   const mounted = useRef(true);
   const [loading, setLoading] = useState(true);
@@ -176,44 +200,35 @@ export default function DashboardPage() {
   useEffect(() => {
     mounted.current = true;
 
-    async function loadDashboard() {
-      if (!supabase) {
-        setError("Supabase is not configured.");
-        setLoading(false);
-        return;
-      }
-
-      const sessionResult = await supabase.auth.getSession();
-      const session = sessionResult.data?.session;
-      const accessToken = session?.access_token;
-
-      const headers = accessToken
-        ? { Authorization: `Bearer ${accessToken}` }
-        : undefined;
-
-      const response = await fetch("/api/dashboard/data", {
-        method: "GET",
-        headers,
-      });
-
-      const payload = (await response.json().catch(() => null)) as DashboardPayload | { error?: string } | null;
+    (async () => {
+      const result = await fetchDashboardData();
       if (!mounted.current) return;
 
-      if (!response.ok) {
-        setError((payload as { error?: string } | null)?.error || "Failed to load dashboard data.");
+      if (result.error) {
+        setError(result.error);
         setDashboardData(null);
       } else {
-        setDashboardData(payload as DashboardPayload);
+        setDashboardData(result.data ?? null);
       }
 
       setLoading(false);
-    }
-
-    loadDashboard();
+    })();
 
     return () => {
       mounted.current = false;
     };
+  }, []);
+
+  const refreshDashboard = useCallback(async () => {
+    const result = await fetchDashboardData();
+    if (!mounted.current) return;
+
+    if (result.error) {
+      setError(result.error);
+      setDashboardData(null);
+    } else {
+      setDashboardData(result.data ?? null);
+    }
   }, []);
 
   const activities = dashboardData?.activities ?? [];
@@ -298,9 +313,7 @@ export default function DashboardPage() {
                   <p className="text-3xl font-semibold text-white">{totalActivities}</p>
                   <p className="mt-1 text-sm text-slate-400">total activities</p>
                 </div>
-                <div className="rounded-2xl bg-slate-950/80 px-4 py-3 text-sm text-slate-300">
-                  Authenticated dashboard session is active.
-                </div>
+                <StravaSyncButton onSynced={refreshDashboard} />
               </div>
             </div>
 

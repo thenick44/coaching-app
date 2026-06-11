@@ -21,6 +21,7 @@ function SettingsContent() {
   const [email, setEmail] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [connectingStrava, setConnectingStrava] = useState(false);
   const [hasStravaConnection, setHasStravaConnection] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 
@@ -80,6 +81,38 @@ function SettingsContent() {
       setError("An unexpected error occurred while syncing activities.");
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function connectStrava() {
+    const client = supabase;
+    if (!client) {
+      setError("Unable to connect Strava: Supabase is not configured.");
+      return;
+    }
+
+    setConnectingStrava(true);
+    setError(null);
+
+    try {
+      const sessionResult = await client.auth.getSession();
+      const accessToken = sessionResult.data?.session?.access_token;
+      const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined;
+
+      const response = await fetch("/api/strava/connect", { headers });
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.url) {
+        setError(result?.error || "Failed to start Strava connection.");
+        return;
+      }
+
+      window.location.href = result.url;
+    } catch (err) {
+      console.error(err);
+      setError("An unexpected error occurred while connecting to Strava.");
+    } finally {
+      setConnectingStrava(false);
     }
   }
 
@@ -151,7 +184,6 @@ function SettingsContent() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const stravaConnectHref = profile?.id ? `/api/strava/connect?user_id=${profile.id}` : "/api/strava/connect";
   const lastSyncedLabel = formatRelativeTime(lastSyncedAt);
 
   return (
@@ -197,12 +229,14 @@ function SettingsContent() {
                     Strava Connected
                   </span>
                 ) : (
-                  <a
-                    href={stravaConnectHref}
-                    className="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 font-semibold text-white transition hover:bg-orange-700"
+                  <button
+                    type="button"
+                    disabled={connectingStrava}
+                    onClick={connectStrava}
+                    className="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 font-semibold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Connect Strava
-                  </a>
+                    {connectingStrava ? "Connecting..." : "Connect Strava"}
+                  </button>
                 )}
                 {showSyncButton && (
                   <button

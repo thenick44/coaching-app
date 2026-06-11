@@ -5,6 +5,7 @@ import { supabase } from "@/src/lib/supabaseClient";
 import { calculateEffortScore } from "@/src/lib/activityMetrics";
 import Protected from "../components/Protected";
 import StravaSyncButton from "../components/StravaSyncButton";
+import TrendLineChart from "../components/TrendLineChart";
 
 type DashboardActivity = {
   strava_activity_id: number;
@@ -396,50 +397,42 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
-                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">14-day distance</p>
-                    <div className="mt-4 grid h-36 grid-cols-[repeat(14,minmax(0,1fr))] gap-0.5 sm:gap-1">
-                      {dailyDistances.map((item) => {
-                        const height = item.distance ? Math.min(100, (item.distance / 1609.34) * 4) : 2;
-                        return (
-                          <div key={item.date.toISOString()} className="relative flex items-end justify-center">
-                            <div
-                              className="w-full rounded-t-lg bg-cyan-500"
-                              style={{ height: `${Math.max(2, height)}%` }}
-                              title={`${formatActivityDate(item.date.toISOString())}: ${metersToMiles(item.distance).toFixed(1)} mi`}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-3 grid grid-cols-[repeat(14,minmax(0,1fr))] gap-0.5 text-center text-[8px] text-slate-500 sm:gap-1 sm:text-[10px]">
-                      {dailyDistances.map((item) => (
-                        <span key={item.date.toISOString()}>{formatDailyChartLabel(item.date)}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
-                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">14-day training load</p>
-                    <div className="mt-4 grid h-36 grid-cols-[repeat(14,minmax(0,1fr))] gap-0.5 sm:gap-1">
-                      {dailyEffort.map((item) => {
-                        const height = item.effort ? Math.min(100, item.effort / 2) : 2;
-                        return (
-                          <div key={item.date.toISOString()} className="relative flex items-end justify-center">
-                            <div
-                              className="w-full rounded-t-lg bg-amber-500"
-                              style={{ height: `${Math.max(2, height)}%` }}
-                              title={`${formatActivityDate(item.date.toISOString())}: ${item.effort} effort`}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-3 grid grid-cols-[repeat(14,minmax(0,1fr))] gap-0.5 text-center text-[8px] text-slate-500 sm:gap-1 sm:text-[10px]">
-                      {dailyEffort.map((item) => (
-                        <span key={item.date.toISOString()}>{formatDailyChartLabel(item.date)}</span>
-                      ))}
-                    </div>
-                  </div>
+                  <TrendLineChart
+                    title="14-day distance"
+                    xLabels={dailyDistances.map((item) => formatDailyChartLabel(item.date))}
+                    series={[
+                      {
+                        label: "Distance",
+                        color: "#22d3ee",
+                        values: dailyDistances.map((item) => metersToMiles(item.distance)),
+                      },
+                    ]}
+                    units="mi"
+                    formatValue={(value) => value.toFixed(1)}
+                    pointTooltips={dailyDistances.map(
+                      (item) => `${formatActivityDate(item.date.toISOString())}: ${metersToMiles(item.distance).toFixed(1)} mi`
+                    )}
+                    width={320}
+                    height={140}
+                  />
+                  <TrendLineChart
+                    title="14-day training load"
+                    xLabels={dailyEffort.map((item) => formatDailyChartLabel(item.date))}
+                    series={[
+                      {
+                        label: "Training load",
+                        color: "#f59e0b",
+                        values: dailyEffort.map((item) => item.effort),
+                      },
+                    ]}
+                    units="effort pts"
+                    formatValue={(value) => Math.round(value).toString()}
+                    pointTooltips={dailyEffort.map(
+                      (item) => `${formatActivityDate(item.date.toISOString())}: ${item.effort} effort pts`
+                    )}
+                    width={320}
+                    height={140}
+                  />
                 </div>
               </div>
               <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-lg shadow-black/20 sm:p-8">

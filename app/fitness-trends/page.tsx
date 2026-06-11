@@ -5,6 +5,7 @@ import { supabase } from "@/src/lib/supabaseClient";
 import { calculateEffortScore } from "@/src/lib/activityMetrics";
 import Protected from "../components/Protected";
 import StravaSyncButton from "../components/StravaSyncButton";
+import TrendLineChart from "../components/TrendLineChart";
 
 type DashboardActivity = {
   strava_activity_id: number;
@@ -122,126 +123,6 @@ function rollingAverage(values: number[], windowSize: number) {
   });
 }
 
-function buildPath(values: number[], width: number, height: number) {
-  const max = Math.max(...values, 1);
-  const min = Math.min(...values, 0);
-  const range = max - min || 1;
-
-  return values
-    .map((value, index) => {
-      const x = (index / (values.length - 1 || 1)) * width;
-      const y = height - ((value - min) / range) * height;
-      return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
-    })
-    .join(" ");
-}
-
-function FitnessTrendChart({
-  title,
-  values,
-  averageValues,
-  units,
-  highlightIndex,
-}: {
-  title: string;
-  values: number[];
-  averageValues: number[];
-  units: string;
-  highlightIndex: number;
-}) {
-  const width = 700;
-  const height = 260;
-  const path = buildPath(values, width, height);
-  const avgPath = buildPath(averageValues, width, height);
-
-  return (
-    <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-lg shadow-black/20 sm:p-8">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm uppercase tracking-[0.28em] text-slate-400">{title}</p>
-          <p className="mt-2 text-sm text-slate-300">Last 12 weeks</p>
-        </div>
-        <div className="rounded-2xl bg-slate-950/80 px-3 py-2 text-xs uppercase tracking-[0.28em] text-slate-500">
-          Rolling 4-week average
-        </div>
-      </div>
-      <div className="overflow-x-auto">
-        <svg width={width + 40} height={height + 40} className="block">
-          <defs>
-            <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.9" />
-              <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.1" />
-            </linearGradient>
-          </defs>
-          <g transform="translate(30, 10)">
-            {[0, 1, 2, 3].map((row) => {
-              const y = (row / 4) * height;
-              return (
-                <line
-                  key={row}
-                  x1={0}
-                  y1={y}
-                  x2={width}
-                  y2={y}
-                  stroke="rgba(148,163,184,0.18)"
-                  strokeWidth="1"
-                />
-              );
-            })}
-            <path d={avgPath} fill="none" stroke="#a5b4fc" strokeWidth="2" strokeDasharray="8 6" />
-            <path d={path} fill="none" stroke="#22d3ee" strokeWidth="3" />
-            {values.map((value, index) => {
-              const x = (index / (values.length - 1 || 1)) * width;
-              const max = Math.max(...values, 1);
-              const min = Math.min(...values, 0);
-              const range = max - min || 1;
-              const y = height - ((value - min) / range) * height;
-              return (
-                <circle
-                  key={index}
-                  cx={x}
-                  cy={y}
-                  r={index === highlightIndex ? 6 : 4}
-                  fill={index === highlightIndex ? "#0ea5e9" : "#ffffff"}
-                  stroke="#22d3ee"
-                  strokeWidth={index === highlightIndex ? 2 : 1}
-                />
-              );
-            })}
-            {values.map((_, index) => {
-              const x = (index / (values.length - 1 || 1)) * width;
-              return (
-                <text
-                  key={`label-${index}`}
-                  x={x}
-                  y={height + 24}
-                  textAnchor="middle"
-                  fill="#94a3b8"
-                  fontSize="10"
-                >
-                  {index % 2 === 0 ? `W${index + 1}` : ""}
-                </text>
-              );
-            })}
-          </g>
-        </svg>
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        {values.map((value, index) => {
-          if (index !== highlightIndex) return null;
-          return (
-            <div key={`highlight-${index}`} className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Best week</p>
-              <p className="mt-2 text-base font-semibold text-white">W{index + 1}</p>
-              <p className="mt-1 text-sm text-slate-400">{value.toFixed(1)} {units}</p>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 export default function FitnessTrendsPage() {
   const mounted = useRef(true);
   const [loading, setLoading] = useState(true);
@@ -286,6 +167,7 @@ export default function FitnessTrendsPage() {
   const weeks = 12;
   const now = new Date();
   const weeklySeries = buildWeeklySeries(activities, weeks, now);
+  const weekLabels = weeklySeries.map((week) => week.label);
 
   const distanceValues = weeklySeries.map((week) => metersToMiles(week.distance));
   const elevationValues = weeklySeries.map((week) => metersToFeet(week.elevation));
@@ -330,36 +212,64 @@ export default function FitnessTrendsPage() {
           </div>
         ) : (
           <div className="grid gap-6">
-            <FitnessTrendChart
+            <TrendLineChart
               title="Weekly distance"
-              values={distanceValues}
-              averageValues={distanceAverage}
+              caption="Last 12 weeks"
+              xLabels={weekLabels}
+              series={[
+                { label: "Weekly distance", color: "#22d3ee", values: distanceValues },
+                { label: "4-week average", color: "#94a3b8", values: distanceAverage, dashed: true },
+              ]}
               units="mi"
+              formatValue={(value) => value.toFixed(1)}
               highlightIndex={bestDistanceIndex}
+              highlightLabel="Best week"
+              pointTooltips={weekLabels.map((label, index) => `${label}: ${distanceValues[index].toFixed(1)} mi`)}
             />
 
-            <FitnessTrendChart
+            <TrendLineChart
               title="Weekly elevation"
-              values={elevationValues}
-              averageValues={elevationAverage}
+              caption="Last 12 weeks"
+              xLabels={weekLabels}
+              series={[
+                { label: "Weekly elevation", color: "#34d399", values: elevationValues },
+                { label: "4-week average", color: "#94a3b8", values: elevationAverage, dashed: true },
+              ]}
               units="ft"
+              formatValue={(value) => Math.round(value).toString()}
               highlightIndex={bestElevationIndex}
+              highlightLabel="Best week"
+              pointTooltips={weekLabels.map((label, index) => `${label}: ${Math.round(elevationValues[index])} ft`)}
             />
 
-            <FitnessTrendChart
+            <TrendLineChart
               title="Weekly moving time"
-              values={timeValues}
-              averageValues={timeAverage}
+              caption="Last 12 weeks"
+              xLabels={weekLabels}
+              series={[
+                { label: "Weekly moving time", color: "#a78bfa", values: timeValues },
+                { label: "4-week average", color: "#94a3b8", values: timeAverage, dashed: true },
+              ]}
               units="h"
+              formatValue={(value) => value.toFixed(1)}
               highlightIndex={bestTimeIndex}
+              highlightLabel="Best week"
+              pointTooltips={weekLabels.map((label, index) => `${label}: ${timeValues[index].toFixed(1)} h`)}
             />
 
-            <FitnessTrendChart
+            <TrendLineChart
               title="Weekly training load"
-              values={effortValues}
-              averageValues={effortAverage}
+              caption="Last 12 weeks"
+              xLabels={weekLabels}
+              series={[
+                { label: "Weekly training load", color: "#f59e0b", values: effortValues },
+                { label: "4-week average", color: "#94a3b8", values: effortAverage, dashed: true },
+              ]}
               units="effort pts"
+              formatValue={(value) => Math.round(value).toString()}
               highlightIndex={bestEffortIndex}
+              highlightLabel="Best week"
+              pointTooltips={weekLabels.map((label, index) => `${label}: ${Math.round(effortValues[index])} effort pts`)}
             />
           </div>
         )}

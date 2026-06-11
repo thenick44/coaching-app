@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS public.strava_connections (
   expires_at bigint,
   scope text,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  last_synced_at timestamptz
 );
 
 COMMENT ON TABLE public.strava_connections IS
@@ -32,6 +33,7 @@ COMMENT ON COLUMN public.strava_connections.refresh_token IS 'Strava OAuth refre
 COMMENT ON COLUMN public.strava_connections.expires_at IS 'Unix timestamp (seconds since epoch) when access_token expires, as returned by Strava (tokenData.expires_at).';
 COMMENT ON COLUMN public.strava_connections.scope IS 'Comma-separated OAuth scopes granted by the athlete (e.g. "read,activity:read_all").';
 COMMENT ON COLUMN public.strava_connections.updated_at IS 'Set explicitly by the application on every upsert.';
+COMMENT ON COLUMN public.strava_connections.last_synced_at IS 'Timestamp of the most recent successful activity sync from Strava.';
 
 -- Used by the (dev-mode) fallback lookups that fetch a connection by athlete.
 CREATE INDEX IF NOT EXISTS strava_connections_athlete_id_idx ON public.strava_connections(athlete_id);

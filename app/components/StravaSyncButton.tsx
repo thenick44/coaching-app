@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
+import { formatRelativeTime } from "@/src/lib/formatRelativeTime";
 
 export default function StravaSyncButton({ onSynced }: { onSynced?: () => void }) {
   const mounted = useRef(true);
   const [hasConnection, setHasConnection] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -23,6 +25,7 @@ export default function StravaSyncButton({ onSynced }: { onSynced?: () => void }
         const data = await response.json();
         if (mounted.current) {
           setHasConnection(Boolean(data?.has_connection));
+          setLastSyncedAt(data?.last_synced_at ?? null);
         }
       } catch (err) {
         console.error("Failed to load Strava connection status:", err);
@@ -67,7 +70,10 @@ export default function StravaSyncButton({ onSynced }: { onSynced?: () => void }
         return;
       }
 
-      setMessage(`Imported ${result.imported} activities`);
+      setMessage(`Synced! Imported ${result.imported} ${result.imported === 1 ? "activity" : "activities"}.`);
+      if (result.last_synced_at) {
+        setLastSyncedAt(result.last_synced_at);
+      }
       onSynced?.();
     } catch (err) {
       console.error(err);
@@ -79,17 +85,24 @@ export default function StravaSyncButton({ onSynced }: { onSynced?: () => void }
 
   if (!hasConnection) return null;
 
+  const lastSyncedLabel = formatRelativeTime(lastSyncedAt);
+
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <button
-        type="button"
-        disabled={syncing}
-        onClick={handleSync}
-        className="inline-flex items-center rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {syncing ? "Syncing..." : "Sync Strava"}
-      </button>
-      {message && <span className="text-sm text-slate-300">{message}</span>}
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={syncing}
+          onClick={handleSync}
+          className="inline-flex items-center rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {syncing ? "Syncing..." : "Sync Strava"}
+        </button>
+        {message && <span className="text-sm text-slate-300">{message}</span>}
+      </div>
+      {!message && lastSyncedLabel && (
+        <span className="text-xs text-slate-500">Last synced {lastSyncedLabel}</span>
+      )}
     </div>
   );
 }

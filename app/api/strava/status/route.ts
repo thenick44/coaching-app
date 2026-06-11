@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   const supabaseAdmin = createSupabaseAdmin()!;
   const { data, error } = await supabaseAdmin
     .from("strava_connections")
-    .select("id")
+    .select("id, last_synced_at")
     .eq("user_id", targetUserId)
     .maybeSingle();
 
@@ -33,5 +33,5 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ has_connection: Boolean(data) });
+  return NextResponse.json({ has_connection: Boolean(data), last_synced_at: data?.last_synced_at ?? null });
 }

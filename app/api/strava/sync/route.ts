@@ -83,5 +83,15 @@ export async function POST(request: NextRequest) {
     imported += 1;
   }
 
-  return NextResponse.json({ imported });
+  const lastSyncedAt = new Date().toISOString();
+  const { error: updateError } = await supabaseAdmin
+    .from("strava_connections")
+    .update({ last_synced_at: lastSyncedAt })
+    .eq("user_id", targetUserId);
+
+  if (updateError) {
+    console.error("Failed to update last_synced_at:", updateError);
+  }
+
+  return NextResponse.json({ imported, last_synced_at: lastSyncedAt });
 }

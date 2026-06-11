@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { supabase, isSupabaseConfigured } from "@/src/lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOrCreateProfile, Profile } from "@/src/lib/profile";
+import { formatRelativeTime } from "@/src/lib/formatRelativeTime";
 import Protected from "../components/Protected";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -21,6 +22,7 @@ function SettingsContent() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [hasStravaConnection, setHasStravaConnection] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 
   const stravaConnected = searchParams.get("strava");
   const stravaConnectedParam =
@@ -69,7 +71,10 @@ function SettingsContent() {
         return;
       }
 
-      setSuccess(`Imported ${result.imported} activities`);
+      setSuccess(`Synced! Imported ${result.imported} ${result.imported === 1 ? "activity" : "activities"}.`);
+      if (result.last_synced_at) {
+        setLastSyncedAt(result.last_synced_at);
+      }
     } catch (err) {
       console.error(err);
       setError("An unexpected error occurred while syncing activities.");
@@ -98,6 +103,7 @@ function SettingsContent() {
         const data = await response.json();
         if (mounted.current) {
           setHasStravaConnection(Boolean(data?.has_connection));
+          setLastSyncedAt(data?.last_synced_at ?? null);
         }
       } catch (err) {
         console.error("Failed to load Strava connection status:", err);
@@ -146,6 +152,7 @@ function SettingsContent() {
   }, []);
 
   const stravaConnectHref = profile?.id ? `/api/strava/connect?user_id=${profile.id}` : "/api/strava/connect";
+  const lastSyncedLabel = formatRelativeTime(lastSyncedAt);
 
   return (
     <main className="min-h-[calc(100vh-88px)] bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-950 px-6 py-10 text-white">
@@ -208,6 +215,9 @@ function SettingsContent() {
                   </button>
                 )}
               </div>
+              {showSyncButton && !success && lastSyncedLabel && (
+                <p className="mt-2 text-sm text-slate-400">Last synced {lastSyncedLabel}</p>
+              )}
             </>
           ) : (
             <p className="mt-4 text-base text-slate-300">Loading account details...</p>

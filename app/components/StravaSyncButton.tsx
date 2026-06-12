@@ -4,6 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
 import { formatRelativeTime } from "@/src/lib/formatRelativeTime";
 
+function describeSyncCounts(added: number, updated: number): string {
+  if (!added && !updated) return "No changes";
+
+  const parts: string[] = [];
+  if (added) parts.push(`${added} new ${added === 1 ? "activity" : "activities"}`);
+  if (updated) parts.push(`${updated} updated`);
+  return parts.join(", ");
+}
+
 export default function StravaSyncButton({
   onSynced,
   compact = false,
@@ -104,9 +113,9 @@ export default function StravaSyncButton({
 
       if (resync) {
         const removedNote = result.removed ? ` Removed ${result.removed} stale ${result.removed === 1 ? "activity" : "activities"}.` : "";
-        setMessage(`Re-synced! Imported ${result.imported} ${result.imported === 1 ? "activity" : "activities"}.${removedNote}`);
+        setMessage(`Re-synced! ${describeSyncCounts(result.added, result.updated)}.${removedNote}`);
       } else {
-        setMessage(`Synced! Imported ${result.imported} ${result.imported === 1 ? "activity" : "activities"}.`);
+        setMessage(`Synced! ${describeSyncCounts(result.added, result.updated)}.`);
       }
       if (result.last_synced_at) {
         setLastSyncedAt(result.last_synced_at);

@@ -147,7 +147,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unexpected Strava response format." }, { status: 500 });
   }
 
-  let imported = 0;
+  const fetchedActivityIds = activities
+    .map((activity) => activity?.id)
+    .filter((id): id is number => typeof id === "number");
+
+  let existingIds = new Set<number>();
+  if (fetchedActivityIds.length > 0) {
+    const { data: existingRows, error: existingIdsError } = await supabaseAdmin
+      .from("activities")
+      .select("strava_activity_id")
+      .eq("user_id", targetUserId)
+      .in("strava_activity_id", fetchedActivityIds);
+
+    if (existingIdsError) {
+      console.error("Failed to load existing activity ids:", existingIdsError);
+    } else {
+      existingIds = new Set((existingRows ?? []).map((row) => row.strava_activity_id));
+    }
+  }
+
+  let added = 0;
+  let updated = 0;
   const fetchedIds = new Set<number>();
   let oldestStartDate: string | null = null;
 
@@ -179,7 +199,11 @@ export async function POST(request: NextRequest) {
       console.error("Failed to upsert activity:", upsertError, activity);
       continue;
     }
-    imported += 1;
+    if (existingIds.has(activity.id)) {
+      updated += 1;
+    } else {
+      added += 1;
+    }
   }
 
   let removed = 0;
@@ -223,5 +247,5 @@ export async function POST(request: NextRequest) {
     console.error("Failed to update last_synced_at:", updateError);
   }
 
-  return NextResponse.json({ imported, removed, last_synced_at: lastSyncedAt });
+  return NextResponse.json({ added, updated, removed, last_synced_at: lastSyncedAt });
 }

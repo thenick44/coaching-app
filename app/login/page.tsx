@@ -83,8 +83,10 @@ function LoginContent() {
         </div>
 
         <form onSubmit={handleSubmit} className="mx-auto w-full max-w-md">
-          <label className="mb-2 block text-sm text-slate-300">Email</label>
+          <label htmlFor="email" className="mb-2 block text-sm text-slate-300">Email</label>
           <input
+            id="email"
+            name="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             type="email"

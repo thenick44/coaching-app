@@ -309,7 +309,8 @@ export default function FitnessTrendsPage() {
                     weighted average of the same daily load. It reflects short-term tiredness from recent training.
                   </p>
                   <p className="mt-2">
-                    <span className="font-semibold text-lime-300">Form (TSB)</span> is Fitness minus Fatigue.
+                    <span className="font-semibold text-lime-300">Form (TSB)</span>{" "}
+                    is Fitness minus Fatigue.
                     Positive values mean you&apos;re fresh/recovered; negative values mean you&apos;re carrying
                     fatigue (common during hard training blocks).
                   </p>

@@ -37,7 +37,7 @@ export default function InfoTooltip({
         i
       </button>
       {open && (
-        <div className="absolute left-0 top-6 z-10 w-72 rounded-xl border border-white/10 bg-slate-900 p-4 text-left text-xs leading-5 text-slate-300 shadow-xl shadow-black/40 sm:w-80">
+        <div className="fixed inset-x-4 bottom-4 z-50 max-h-[70vh] overflow-y-auto rounded-xl border border-white/10 bg-slate-900 p-4 text-left text-xs leading-5 text-slate-300 shadow-xl shadow-black/40 sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-0 sm:top-6 sm:max-h-none sm:w-80 sm:overflow-visible">
           {children}
         </div>
       )}

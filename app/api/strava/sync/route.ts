@@ -5,6 +5,60 @@ const MAX_PAGE_SIZE = 200;
 // When doing an incremental sync, look back this far before the last sync to
 // catch activities that were added/edited with a start_date in the past.
 const INCREMENTAL_LOOKBACK_SECONDS = 14 * 24 * 60 * 60;
+// Refresh the Strava access token if it's already expired or will expire
+// within this window.
+const TOKEN_REFRESH_BUFFER_SECONDS = 5 * 60;
+
+type StravaTokenRefreshResult = { accessToken: string } | { error: string };
+
+async function refreshStravaToken(
+  supabaseAdmin: NonNullable<ReturnType<typeof createSupabaseAdmin>>,
+  targetUserId: string,
+  refreshToken: string
+): Promise<StravaTokenRefreshResult> {
+  const clientId = process.env.STRAVA_CLIENT_ID;
+  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    console.error("Missing STRAVA_CLIENT_ID or STRAVA_CLIENT_SECRET for token refresh");
+    return { error: "Strava sync is not configured on the server." };
+  }
+
+  const response = await fetch("https://www.strava.com/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    console.error("Failed to refresh Strava token:", response.status, text);
+    return { error: "Your Strava connection has expired. Please reconnect Strava in Settings." };
+  }
+
+  const data = await response.json();
+
+  const { error: updateError } = await supabaseAdmin
+    .from("strava_connections")
+    .update({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_at: data.expires_at,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", targetUserId);
+
+  if (updateError) {
+    console.error("Failed to persist refreshed Strava token:", updateError);
+  }
+
+  return { accessToken: data.access_token };
+}
 
 export async function POST(request: NextRequest) {
   if (!isServerConfigured()) {
@@ -40,7 +94,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No Strava connection available for sync." }, { status: 404 });
   }
 
-  const stravaAccessToken = connection.access_token;
+  let stravaAccessToken = connection.access_token;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  if (connection.expires_at && connection.expires_at <= nowSeconds + TOKEN_REFRESH_BUFFER_SECONDS) {
+    const refreshed = await refreshStravaToken(supabaseAdmin, targetUserId, connection.refresh_token);
+    if ("error" in refreshed) {
+      return NextResponse.json({ error: refreshed.error }, { status: 401 });
+    }
+    stravaAccessToken = refreshed.accessToken;
+  }
 
   const params = new URLSearchParams({ per_page: String(MAX_PAGE_SIZE) });
   if (!resync && connection.last_synced_at) {
@@ -48,7 +111,7 @@ export async function POST(request: NextRequest) {
     params.set("after", String(lastSyncedSeconds - INCREMENTAL_LOOKBACK_SECONDS));
   }
 
-  const activitiesResponse = await fetch(
+  let activitiesResponse = await fetch(
     `https://www.strava.com/api/v3/athlete/activities?${params.toString()}`,
     {
       headers: {
@@ -56,6 +119,22 @@ export async function POST(request: NextRequest) {
       },
     }
   );
+
+  if (activitiesResponse.status === 401) {
+    const refreshed = await refreshStravaToken(supabaseAdmin, targetUserId, connection.refresh_token);
+    if ("error" in refreshed) {
+      return NextResponse.json({ error: refreshed.error }, { status: 401 });
+    }
+    stravaAccessToken = refreshed.accessToken;
+    activitiesResponse = await fetch(
+      `https://www.strava.com/api/v3/athlete/activities?${params.toString()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${stravaAccessToken}`,
+        },
+      }
+    );
+  }
 
   if (!activitiesResponse.ok) {
     const text = await activitiesResponse.text();

@@ -4,7 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
 import { formatRelativeTime } from "@/src/lib/formatRelativeTime";
 
-export default function StravaSyncButton({ onSynced }: { onSynced?: () => void }) {
+export default function StravaSyncButton({
+  onSynced,
+  compact = false,
+}: {
+  onSynced?: () => void;
+  compact?: boolean;
+}) {
   const mounted = useRef(true);
   const [hasConnection, setHasConnection] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -137,6 +143,26 @@ export default function StravaSyncButton({ onSynced }: { onSynced?: () => void }
 
   const lastSyncedLabel = formatRelativeTime(lastSyncedAt);
   const busy = syncing || resyncing;
+
+  if (compact) {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={handleSync}
+          className="inline-flex items-center rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {syncing ? "Syncing..." : "Sync"}
+        </button>
+        {message ? (
+          <span className="text-xs text-slate-400">{message}</span>
+        ) : (
+          lastSyncedLabel && <span className="text-xs text-slate-500">Last synced {lastSyncedLabel}</span>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-1">

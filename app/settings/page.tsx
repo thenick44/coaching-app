@@ -5,8 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { supabase, isSupabaseConfigured } from "@/src/lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOrCreateProfile, Profile } from "@/src/lib/profile";
-import { formatRelativeTime } from "@/src/lib/formatRelativeTime";
 import Protected from "../components/Protected";
+import StravaSyncButton from "../components/StravaSyncButton";
 
 const ERROR_MESSAGES: Record<string, string> = {
   no_code: "Failed to connect to Strava: No authorization code received",
@@ -21,15 +21,12 @@ function SettingsContent() {
   const mounted = useRef(true);
   const [email, setEmail] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [syncing, setSyncing] = useState(false);
   const [connectingStrava, setConnectingStrava] = useState(false);
   const [hasStravaConnection, setHasStravaConnection] = useState(false);
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 
   const stravaConnected = searchParams.get("strava");
   const stravaConnectedParam =
     stravaConnected === "connected" || stravaConnected === "connected_dev";
-  const showSyncButton = stravaConnectedParam || hasStravaConnection;
 
   const [success, setSuccess] = useState<string | null>(() => {
     if (stravaConnectedParam) {
@@ -45,77 +42,6 @@ function SettingsContent() {
     }
     return supabase ? null : "Supabase is not configured.";
   });
-
-  // Checks whether the sync actually completed server-side even though the
-  // browser's fetch was interrupted (e.g. the user backgrounded the tab and
-  // mobile Safari killed the in-flight request).
-  async function checkSyncCompletedAfterInterruption(
-    client: SupabaseClient,
-    syncStartedAt: number
-  ): Promise<string | null> {
-    try {
-      const sessionResult = await client.auth.getSession();
-      const accessToken = sessionResult.data?.session?.access_token;
-      const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined;
-      const response = await fetch("/api/strava/status", { headers });
-      if (!response.ok) return null;
-      const data = await response.json();
-      const newLastSyncedAt = data?.last_synced_at ?? null;
-      if (newLastSyncedAt && new Date(newLastSyncedAt).getTime() >= syncStartedAt) {
-        return newLastSyncedAt;
-      }
-    } catch (err) {
-      console.error("Failed to check sync status after interruption:", err);
-    }
-    return null;
-  }
-
-  async function syncActivities() {
-    const client = supabase;
-    if (!client) {
-      setError("Unable to sync activities: Supabase is not configured.");
-      return;
-    }
-
-    setSyncing(true);
-    setError(null);
-    setSuccess(null);
-
-    const syncStartedAt = Date.now();
-
-    try {
-      const sessionResult = await client.auth.getSession();
-      const accessToken = sessionResult.data?.session?.access_token;
-
-      const response = await fetch("/api/strava/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ access_token: accessToken ?? null }),
-      });
-
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setError(result.error || "Failed to sync activities.");
-        return;
-      }
-
-      setSuccess(`Synced! Imported ${result.imported} ${result.imported === 1 ? "activity" : "activities"}.`);
-      if (result.last_synced_at) {
-        setLastSyncedAt(result.last_synced_at);
-      }
-    } catch (err) {
-      console.error(err);
-      const completedAt = await checkSyncCompletedAfterInterruption(client, syncStartedAt);
-      if (completedAt) {
-        setLastSyncedAt(completedAt);
-        setSuccess("Connection was interrupted, but the sync finished successfully.");
-      } else {
-        setError("Connection was interrupted before the sync finished. It may complete in the background — check back in a moment, or try again.");
-      }
-    } finally {
-      setSyncing(false);
-    }
-  }
 
   async function connectStrava() {
     const client = supabase;
@@ -169,7 +95,6 @@ function SettingsContent() {
         const data = await response.json();
         if (mounted.current) {
           setHasStravaConnection(Boolean(data?.has_connection));
-          setLastSyncedAt(data?.last_synced_at ?? null);
         }
       } catch (err) {
         console.error("Failed to load Strava connection status:", err);
@@ -216,8 +141,6 @@ function SettingsContent() {
 
     return () => sub.subscription.unsubscribe();
   }, []);
-
-  const lastSyncedLabel = formatRelativeTime(lastSyncedAt);
 
   return (
     <main className="min-h-[calc(100vh-88px)] bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-950 px-6 py-10 text-white">
@@ -271,20 +194,8 @@ function SettingsContent() {
                     {connectingStrava ? "Connecting..." : "Connect Strava"}
                   </button>
                 )}
-                {showSyncButton && (
-                  <button
-                    type="button"
-                    disabled={syncing}
-                    onClick={syncActivities}
-                    className="inline-flex items-center rounded-lg bg-slate-700 px-4 py-2 font-semibold text-white transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {syncing ? "Syncing..." : "Sync Strava Activities"}
-                  </button>
-                )}
+                <StravaSyncButton />
               </div>
-              {showSyncButton && !success && lastSyncedLabel && (
-                <p className="mt-2 text-sm text-slate-400">Last synced {lastSyncedLabel}</p>
-              )}
             </>
           ) : (
             <p className="mt-4 text-base text-slate-300">Loading account details...</p>

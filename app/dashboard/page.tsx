@@ -415,7 +415,7 @@ export default function DashboardPage() {
                   <p className="text-3xl font-semibold text-white">{totalActivities}</p>
                   <p className="mt-1 text-sm text-slate-400">total activities</p>
                 </div>
-                <StravaSyncButton onSynced={refreshDashboard} />
+                <StravaSyncButton onSynced={refreshDashboard} compact />
               </div>
             </div>
 

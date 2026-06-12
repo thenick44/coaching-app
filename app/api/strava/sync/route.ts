@@ -9,7 +9,18 @@ const INCREMENTAL_LOOKBACK_SECONDS = 14 * 24 * 60 * 60;
 // within this window.
 const TOKEN_REFRESH_BUFFER_SECONDS = 5 * 60;
 
-type StravaTokenRefreshResult = { accessToken: string } | { error: string };
+type StravaTokenRefreshResult = { accessToken: string } | { error: string; status: number };
+
+const STRAVA_RATE_LIMIT_ERROR = "Strava is temporarily rate-limiting requests. Please try again in a few minutes.";
+
+// Strava sends usage/limit as "<15min>,<daily>" pairs on every API response.
+function logStravaRateLimitHeaders(response: Response) {
+  const usage = response.headers.get("x-ratelimit-usage");
+  const limit = response.headers.get("x-ratelimit-limit");
+  if (usage && limit) {
+    console.log(`Strava API rate limit usage (15min,daily): ${usage} / ${limit}`);
+  }
+}
 
 async function refreshStravaToken(
   supabaseAdmin: NonNullable<ReturnType<typeof createSupabaseAdmin>>,
@@ -21,7 +32,7 @@ async function refreshStravaToken(
 
   if (!clientId || !clientSecret) {
     console.error("Missing STRAVA_CLIENT_ID or STRAVA_CLIENT_SECRET for token refresh");
-    return { error: "Strava sync is not configured on the server." };
+    return { error: "Strava sync is not configured on the server.", status: 500 };
   }
 
   const response = await fetch("https://www.strava.com/oauth/token", {
@@ -38,7 +49,10 @@ async function refreshStravaToken(
   if (!response.ok) {
     const text = await response.text();
     console.error("Failed to refresh Strava token:", response.status, text);
-    return { error: "Your Strava connection has expired. Please reconnect Strava in Settings." };
+    if (response.status === 429) {
+      return { error: STRAVA_RATE_LIMIT_ERROR, status: 429 };
+    }
+    return { error: "Your Strava connection has expired. Please reconnect Strava in Settings.", status: 401 };
   }
 
   const data = await response.json();
@@ -100,7 +114,7 @@ export async function POST(request: NextRequest) {
   if (connection.expires_at && connection.expires_at <= nowSeconds + TOKEN_REFRESH_BUFFER_SECONDS) {
     const refreshed = await refreshStravaToken(supabaseAdmin, targetUserId, connection.refresh_token);
     if ("error" in refreshed) {
-      return NextResponse.json({ error: refreshed.error }, { status: 401 });
+      return NextResponse.json({ error: refreshed.error }, { status: refreshed.status });
     }
     stravaAccessToken = refreshed.accessToken;
   }
@@ -123,7 +137,7 @@ export async function POST(request: NextRequest) {
   if (activitiesResponse.status === 401) {
     const refreshed = await refreshStravaToken(supabaseAdmin, targetUserId, connection.refresh_token);
     if ("error" in refreshed) {
-      return NextResponse.json({ error: refreshed.error }, { status: 401 });
+      return NextResponse.json({ error: refreshed.error }, { status: refreshed.status });
     }
     stravaAccessToken = refreshed.accessToken;
     activitiesResponse = await fetch(
@@ -136,9 +150,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  logStravaRateLimitHeaders(activitiesResponse);
+
   if (!activitiesResponse.ok) {
     const text = await activitiesResponse.text();
     console.error("Failed to fetch Strava activities:", activitiesResponse.status, text);
+    if (activitiesResponse.status === 429) {
+      return NextResponse.json({ error: STRAVA_RATE_LIMIT_ERROR }, { status: 429 });
+    }
     return NextResponse.json({ error: "Failed to fetch activities from Strava." }, { status: activitiesResponse.status });
   }
 

@@ -28,14 +28,6 @@ type DashboardPayload = {
   activities: DashboardActivity[];
 };
 
-const PRIMARY_ACTIVITY_TYPES = new Set([
-  "Ride",
-  "VirtualRide",
-  "MountainBikeRide",
-  "GravelRide",
-  "Run",
-]);
-
 function metersToMiles(meters: number) {
   return meters / 1609.34;
 }
@@ -340,11 +332,6 @@ export default function DashboardPage() {
   const lastActivity = sortedActivities[0];
   const totalActivities = activities.length;
 
-  const primaryActivities = activities.filter((activity) => {
-    const activityType = activity.raw_json?.type ?? activity.raw_json?.sport_type ?? "";
-    return PRIMARY_ACTIVITY_TYPES.has(activityType);
-  });
-
   const now = new Date();
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
@@ -363,11 +350,11 @@ export default function DashboardPage() {
 
   const lastWeekEnd = new Date(currentWeekStart);
 
-  const primary7Day = summarizeActivityMetrics(primaryActivities, sevenDaysAgo);
-  const primary30Day = summarizeActivityMetrics(primaryActivities, thirtyDaysAgo);
+  const last7Days = summarizeActivityMetrics(activities, sevenDaysAgo);
+  const last30Days = summarizeActivityMetrics(activities, thirtyDaysAgo);
 
-  const currentWeekSummary = summarizeActivityMetricsBetween(primaryActivities, currentWeekStart, new Date(today.getTime() + 24 * 60 * 60 * 1000));
-  const lastWeekSummary = summarizeActivityMetricsBetween(primaryActivities, lastWeekStart, lastWeekEnd);
+  const currentWeekSummary = summarizeActivityMetricsBetween(activities, currentWeekStart, new Date(today.getTime() + 24 * 60 * 60 * 1000));
+  const lastWeekSummary = summarizeActivityMetricsBetween(activities, lastWeekStart, lastWeekEnd);
   const diffSummary = {
     distance: currentWeekSummary.distance - lastWeekSummary.distance,
     elevation: currentWeekSummary.elevation - lastWeekSummary.elevation,
@@ -378,8 +365,8 @@ export default function DashboardPage() {
   const averageEffort = calculateAverageEffort(activities);
   const recentActivities = sortedActivities.slice(0, visibleActivityCount);
   const hasMoreActivities = visibleActivityCount < sortedActivities.length;
-  const dailyDistances = getLastNDaysDistance(primaryActivities, 14, today);
-  const dailyEffort = getLastNDaysEffort(primaryActivities, 14, today);
+  const dailyDistances = getLastNDaysDistance(activities, 14, today);
+  const dailyEffort = getLastNDaysEffort(activities, 14, today);
 
   return (
     <Protected>
@@ -542,20 +529,20 @@ export default function DashboardPage() {
                   <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
                     <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Last 7 days</p>
                     <p className="mt-3 text-sm text-slate-400">Distance</p>
-                    <p className="text-xl font-semibold text-white">{metersToMiles(primary7Day.distance).toFixed(1)} mi</p>
+                    <p className="text-xl font-semibold text-white">{metersToMiles(last7Days.distance).toFixed(1)} mi</p>
                     <p className="mt-3 text-sm text-slate-400">Elevation</p>
-                    <p className="text-xl font-semibold text-white">{Math.round(metersToFeet(primary7Day.elevation))} ft</p>
+                    <p className="text-xl font-semibold text-white">{Math.round(metersToFeet(last7Days.elevation))} ft</p>
                     <p className="mt-3 text-sm text-slate-400">Moving time</p>
-                    <p className="text-xl font-semibold text-white">{secondsToHoursMinutes(primary7Day.movingTime)}</p>
+                    <p className="text-xl font-semibold text-white">{secondsToHoursMinutes(last7Days.movingTime)}</p>
                   </div>
                   <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
                     <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Last 30 days</p>
                     <p className="mt-3 text-sm text-slate-400">Distance</p>
-                    <p className="text-xl font-semibold text-white">{metersToMiles(primary30Day.distance).toFixed(1)} mi</p>
+                    <p className="text-xl font-semibold text-white">{metersToMiles(last30Days.distance).toFixed(1)} mi</p>
                     <p className="mt-3 text-sm text-slate-400">Elevation</p>
-                    <p className="text-xl font-semibold text-white">{Math.round(metersToFeet(primary30Day.elevation))} ft</p>
+                    <p className="text-xl font-semibold text-white">{Math.round(metersToFeet(last30Days.elevation))} ft</p>
                     <p className="mt-3 text-sm text-slate-400">Moving time</p>
-                    <p className="text-xl font-semibold text-white">{secondsToHoursMinutes(primary30Day.movingTime)}</p>
+                    <p className="text-xl font-semibold text-white">{secondsToHoursMinutes(last30Days.movingTime)}</p>
                   </div>
                 </div>
               </div>

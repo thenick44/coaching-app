@@ -88,6 +88,7 @@ function LoginContent() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             type="email"
+            autoComplete="email"
             required
             className="w-full rounded-md border border-white/10 bg-transparent px-4 py-2 text-white placeholder:text-slate-400"
           />

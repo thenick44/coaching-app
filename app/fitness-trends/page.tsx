@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
 import { calculateEffortScore, calculateFitnessSeries } from "@/src/lib/activityMetrics";
 import Protected from "../components/Protected";
-import StravaSyncButton from "../components/StravaSyncButton";
 import TrendLineChart from "../components/TrendLineChart";
 import InfoTooltip from "../components/InfoTooltip";
 
@@ -162,18 +161,6 @@ export default function FitnessTrendsPage() {
     };
   }, []);
 
-  const refreshDashboard = useCallback(async () => {
-    const result = await fetchDashboardData();
-    if (!mounted.current) return;
-
-    if (result.error) {
-      setError(result.error);
-      setDashboardData(null);
-    } else {
-      setDashboardData(result.data ?? null);
-    }
-  }, []);
-
   const activities = dashboardData?.activities ?? [];
   const weeks = 12;
   const now = new Date();
@@ -215,9 +202,6 @@ export default function FitnessTrendsPage() {
           <p className="mx-auto max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
             Track weekly progress, rolling averages, and your best training weeks over the last 12 weeks.
           </p>
-          <div className="flex justify-center">
-            <StravaSyncButton onSynced={refreshDashboard} />
-          </div>
         </div>
 
         {error && (

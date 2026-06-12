@@ -23,6 +23,7 @@ function SettingsContent() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [connectingStrava, setConnectingStrava] = useState(false);
   const [hasStravaConnection, setHasStravaConnection] = useState(false);
+  const [stravaAthleteId, setStravaAthleteId] = useState<number | null>(null);
 
   const stravaConnected = searchParams.get("strava");
   const stravaConnectedParam =
@@ -95,6 +96,7 @@ function SettingsContent() {
         const data = await response.json();
         if (mounted.current) {
           setHasStravaConnection(Boolean(data?.has_connection));
+          setStravaAthleteId(data?.athlete_id ?? null);
         }
       } catch (err) {
         console.error("Failed to load Strava connection status:", err);
@@ -175,9 +177,9 @@ function SettingsContent() {
             <>
               <p className="mt-4 text-xl font-semibold text-white">{email}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">Profile id: {profile?.id ?? "—"}</p>
-              <p className="mt-1 text-sm leading-6 text-slate-300">Strava athlete id: {profile?.strava_athlete_id ?? "Not connected"}</p>
+              <p className="mt-1 text-sm leading-6 text-slate-300">Strava athlete id: {stravaAthleteId ?? "Not connected"}</p>
               <div className="mt-6 flex flex-wrap items-center gap-3">
-                {hasStravaConnection || profile?.strava_athlete_id ? (
+                {hasStravaConnection ? (
                   <span
                     aria-disabled="true"
                     className="inline-flex cursor-not-allowed items-center rounded-lg bg-orange-600/40 px-4 py-2 font-semibold text-white/70"

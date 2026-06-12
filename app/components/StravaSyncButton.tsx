@@ -46,6 +46,28 @@ export default function StravaSyncButton({ onSynced }: { onSynced?: () => void }
     return () => clearTimeout(timer);
   }, [message]);
 
+  // Checks whether the sync actually completed server-side even though the
+  // browser's fetch was interrupted (e.g. the user backgrounded the tab and
+  // mobile Safari killed the in-flight request).
+  async function checkSyncCompletedAfterInterruption(syncStartedAt: number): Promise<string | null> {
+    if (!supabase) return null;
+    try {
+      const sessionResult = await supabase.auth.getSession();
+      const accessToken = sessionResult.data?.session?.access_token;
+      const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined;
+      const response = await fetch("/api/strava/status", { headers });
+      if (!response.ok) return null;
+      const data = await response.json();
+      const newLastSyncedAt = data?.last_synced_at ?? null;
+      if (newLastSyncedAt && new Date(newLastSyncedAt).getTime() >= syncStartedAt) {
+        return newLastSyncedAt;
+      }
+    } catch (err) {
+      console.error("Failed to check sync status after interruption:", err);
+    }
+    return null;
+  }
+
   async function runSync(resync: boolean) {
     if (!supabase) {
       setMessage("Supabase is not configured.");
@@ -55,6 +77,8 @@ export default function StravaSyncButton({ onSynced }: { onSynced?: () => void }
     const setBusy = resync ? setResyncing : setSyncing;
     setBusy(true);
     setMessage(null);
+
+    const syncStartedAt = Date.now();
 
     try {
       const sessionResult = await supabase.auth.getSession();
@@ -84,7 +108,14 @@ export default function StravaSyncButton({ onSynced }: { onSynced?: () => void }
       onSynced?.();
     } catch (err) {
       console.error(err);
-      setMessage("An unexpected error occurred while syncing activities.");
+      const completedAt = await checkSyncCompletedAfterInterruption(syncStartedAt);
+      if (completedAt) {
+        setLastSyncedAt(completedAt);
+        setMessage("Connection was interrupted, but the sync finished successfully.");
+        onSynced?.();
+      } else {
+        setMessage("Connection was interrupted before the sync finished. It may complete in the background — check back in a moment, or try again.");
+      }
     } finally {
       setBusy(false);
     }

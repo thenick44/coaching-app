@@ -46,6 +46,30 @@ function SettingsContent() {
     return supabase ? null : "Supabase is not configured.";
   });
 
+  // Checks whether the sync actually completed server-side even though the
+  // browser's fetch was interrupted (e.g. the user backgrounded the tab and
+  // mobile Safari killed the in-flight request).
+  async function checkSyncCompletedAfterInterruption(
+    client: SupabaseClient,
+    syncStartedAt: number
+  ): Promise<string | null> {
+    try {
+      const sessionResult = await client.auth.getSession();
+      const accessToken = sessionResult.data?.session?.access_token;
+      const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined;
+      const response = await fetch("/api/strava/status", { headers });
+      if (!response.ok) return null;
+      const data = await response.json();
+      const newLastSyncedAt = data?.last_synced_at ?? null;
+      if (newLastSyncedAt && new Date(newLastSyncedAt).getTime() >= syncStartedAt) {
+        return newLastSyncedAt;
+      }
+    } catch (err) {
+      console.error("Failed to check sync status after interruption:", err);
+    }
+    return null;
+  }
+
   async function syncActivities() {
     const client = supabase;
     if (!client) {
@@ -56,6 +80,8 @@ function SettingsContent() {
     setSyncing(true);
     setError(null);
     setSuccess(null);
+
+    const syncStartedAt = Date.now();
 
     try {
       const sessionResult = await client.auth.getSession();
@@ -79,7 +105,13 @@ function SettingsContent() {
       }
     } catch (err) {
       console.error(err);
-      setError("An unexpected error occurred while syncing activities.");
+      const completedAt = await checkSyncCompletedAfterInterruption(client, syncStartedAt);
+      if (completedAt) {
+        setLastSyncedAt(completedAt);
+        setSuccess("Connection was interrupted, but the sync finished successfully.");
+      } else {
+        setError("Connection was interrupted before the sync finished. It may complete in the background — check back in a moment, or try again.");
+      }
     } finally {
       setSyncing(false);
     }

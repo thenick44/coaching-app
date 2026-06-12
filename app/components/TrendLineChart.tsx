@@ -85,7 +85,7 @@ export default function TrendLineChart({
   const primary = series[0];
 
   return (
-    <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
+    <div className="min-w-0 rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="flex items-center gap-2">
           <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{title}</p>

@@ -149,7 +149,7 @@ function SettingsContent() {
   const missingActivityReadAll =
     hasStravaConnection &&
     !!stravaScope &&
-    !stravaScope.split(",").map((s) => s.trim()).includes("activity:read_all");
+    !/\bactivity:read_all\b/.test(stravaScope);
 
   return (
     <main className="min-h-[calc(100vh-88px)] bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-950 px-6 py-10 text-white">

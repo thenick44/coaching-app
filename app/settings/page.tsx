@@ -11,6 +11,7 @@ import Protected from "../components/Protected";
 const ERROR_MESSAGES: Record<string, string> = {
   no_code: "Failed to connect to Strava: No authorization code received",
   config_error: "Strava is not properly configured",
+  invalid_state: "Your Strava connection request expired or was invalid. Please try connecting again.",
   token_exchange_failed: "Failed to exchange authorization code for token",
   oauth_error: "An error occurred during Strava authentication",
 };

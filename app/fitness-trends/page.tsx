@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/src/lib/supabaseClient";
-import { calculateEffortScore } from "@/src/lib/activityMetrics";
+import { calculateEffortScore, calculateFitnessSeries } from "@/src/lib/activityMetrics";
 import Protected from "../components/Protected";
 import StravaSyncButton from "../components/StravaSyncButton";
 import TrendLineChart from "../components/TrendLineChart";
+import InfoTooltip from "../components/InfoTooltip";
 
 type DashboardActivity = {
   strava_activity_id: number;
@@ -73,6 +74,16 @@ function getWeekStart(date: Date) {
 
 function formatWeekLabel(date: Date) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+}
+
+function parseDateKey(key: string): Date {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function formatForm(value: number) {
+  const rounded = Math.round(value);
+  return rounded > 0 ? `+${rounded}` : `${rounded}`;
 }
 
 function buildWeeklySeries(activities: DashboardActivity[], weeks: number, referenceDate: Date) {
@@ -184,6 +195,16 @@ export default function FitnessTrendsPage() {
   const bestTimeIndex = timeValues.indexOf(Math.max(...timeValues));
   const bestEffortIndex = effortValues.indexOf(Math.max(...effortValues));
 
+  const fitnessSeries = calculateFitnessSeries(activities, weeks * 7, now);
+  const fitnessLabels = fitnessSeries.map((day) => formatWeekLabel(parseDateKey(day.date)));
+  const ctlValues = fitnessSeries.map((day) => day.ctl);
+  const atlValues = fitnessSeries.map((day) => day.atl);
+  const tsbValues = fitnessSeries.map((day) => day.tsb);
+  const fitnessTooltips = fitnessSeries.map(
+    (day) =>
+      `${formatWeekLabel(parseDateKey(day.date))}: Fitness ${Math.round(day.ctl)}, Fatigue ${Math.round(day.atl)}, Form ${formatForm(day.tsb)}`
+  );
+
   return (
     <Protected>
     <main className="min-h-[calc(100vh-88px)] bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-950 px-6 py-10 text-white">
@@ -270,6 +291,49 @@ export default function FitnessTrendsPage() {
               highlightIndex={bestEffortIndex}
               highlightLabel="Best week"
               pointTooltips={weekLabels.map((label, index) => `${label}: ${Math.round(effortValues[index])} effort pts`)}
+            />
+
+            <TrendLineChart
+              title="Fitness, fatigue & form"
+              caption="Last 12 weeks"
+              info={
+                <InfoTooltip label="About fitness, fatigue & form">
+                  <p className="font-semibold text-white">How these are calculated</p>
+                  <p className="mt-2">
+                    <span className="font-semibold text-sky-300">Fitness (CTL)</span> is a 42-day exponentially
+                    weighted average of your daily training load. It represents long-term aerobic fitness and
+                    changes slowly.
+                  </p>
+                  <p className="mt-2">
+                    <span className="font-semibold text-rose-300">Fatigue (ATL)</span> is a 7-day exponentially
+                    weighted average of the same daily load. It reflects short-term tiredness from recent training.
+                  </p>
+                  <p className="mt-2">
+                    <span className="font-semibold text-lime-300">Form (TSB)</span> is Fitness minus Fatigue.
+                    Positive values mean you&apos;re fresh/recovered; negative values mean you&apos;re carrying
+                    fatigue (common during hard training blocks).
+                  </p>
+                  <p className="mt-2">
+                    Daily training load uses the same effort score shown elsewhere in the app &mdash; Strava&apos;s
+                    Relative Effort when available, otherwise an estimate from heart rate, power, or
+                    distance/elevation/duration.
+                  </p>
+                  <p className="mt-2 text-slate-400">
+                    Fitness and Fatigue need time to reflect your training history, so they may read low until
+                    several weeks of activity have synced.
+                  </p>
+                </InfoTooltip>
+              }
+              xLabels={fitnessLabels}
+              xLabelStep={7}
+              series={[
+                { label: "Fitness (CTL)", color: "#38bdf8", values: ctlValues },
+                { label: "Fatigue (ATL)", color: "#fb7185", values: atlValues },
+                { label: "Form (TSB)", color: "#a3e635", values: tsbValues },
+              ]}
+              units="pts"
+              formatValue={(value) => Math.round(value).toString()}
+              pointTooltips={fitnessTooltips}
             />
           </div>
         )}

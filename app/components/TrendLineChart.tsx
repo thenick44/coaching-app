@@ -10,6 +10,7 @@ export type TrendLineSeries = {
 type TrendLineChartProps = {
   title: string;
   caption?: string;
+  info?: React.ReactNode;
   xLabels: string[];
   series: TrendLineSeries[];
   units: string;
@@ -19,6 +20,7 @@ type TrendLineChartProps = {
   pointTooltips?: string[];
   width?: number;
   height?: number;
+  xLabelStep?: number;
 };
 
 const PADDING_LEFT = 44;
@@ -42,6 +44,7 @@ function getNiceStep(max: number, tickCount: number) {
 export default function TrendLineChart({
   title,
   caption,
+  info,
   xLabels,
   series,
   units,
@@ -51,14 +54,18 @@ export default function TrendLineChart({
   pointTooltips,
   width = 700,
   height = 220,
+  xLabelStep: xLabelStepProp,
 }: TrendLineChartProps) {
   const format = formatValue ?? ((value: number) => value.toFixed(1));
 
   const allValues = series.flatMap((s) => s.values);
   const dataMax = Math.max(...allValues, 0);
-  const step = getNiceStep(dataMax || 1, 4);
-  const yMax = Math.max(step, Math.ceil((dataMax || 1) / step) * step);
-  const ticks = Array.from({ length: Math.round(yMax / step) + 1 }, (_, i) => i * step);
+  const dataMin = Math.min(...allValues, 0);
+  const range = dataMax - dataMin;
+  const step = getNiceStep(range || 1, 4);
+  const yMax = Math.max(step, Math.ceil(dataMax / step) * step);
+  const yMin = Math.min(0, Math.floor(dataMin / step) * step);
+  const ticks = Array.from({ length: Math.round((yMax - yMin) / step) + 1 }, (_, i) => yMin + i * step);
 
   const pointCount = Math.max(xLabels.length, 1);
   const svgWidth = width + PADDING_LEFT + PADDING_RIGHT;
@@ -67,20 +74,23 @@ export default function TrendLineChart({
   const xForIndex = (index: number) =>
     PADDING_LEFT + (pointCount > 1 ? (index / (pointCount - 1)) * width : width / 2);
 
-  const yForValue = (value: number) => PADDING_TOP + height - (value / yMax) * height;
+  const yForValue = (value: number) => PADDING_TOP + height - ((value - yMin) / (yMax - yMin)) * height;
 
   const buildPath = (values: number[]) =>
     values
       .map((value, index) => `${index === 0 ? "M" : "L"}${xForIndex(index).toFixed(2)} ${yForValue(value).toFixed(2)}`)
       .join(" ");
 
-  const xLabelStep = pointCount > 10 ? 2 : 1;
+  const xLabelStep = xLabelStepProp ?? (pointCount > 10 ? 2 : 1);
   const primary = series[0];
 
   return (
     <div className="rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{title}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{title}</p>
+          {info}
+        </div>
         {caption && <p className="text-xs text-slate-500">{caption}</p>}
       </div>
 
@@ -88,6 +98,7 @@ export default function TrendLineChart({
         <svg width={svgWidth} height={svgHeight} className="block">
           {ticks.map((tick) => {
             const y = yForValue(tick);
+            const isZeroLine = tick === 0 && yMin < 0;
             return (
               <g key={tick}>
                 <line
@@ -95,8 +106,8 @@ export default function TrendLineChart({
                   x2={PADDING_LEFT + width}
                   y1={y}
                   y2={y}
-                  stroke="rgba(148,163,184,0.18)"
-                  strokeWidth="1"
+                  stroke={isZeroLine ? "rgba(148,163,184,0.45)" : "rgba(148,163,184,0.18)"}
+                  strokeWidth={isZeroLine ? "1.5" : "1"}
                 />
                 <text x={PADDING_LEFT - 8} y={y + 3} textAnchor="end" fontSize="10" fill="#94a3b8">
                   {format(tick)}

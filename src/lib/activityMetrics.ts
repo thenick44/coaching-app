@@ -220,3 +220,107 @@ export function calculateRecentTrainingLoad(weeklyStats: WeeklyStat[], recentWee
     average_weekly_moving_time_minutes: Number(average(recentWeeks.map((week) => week.movingTime)).toFixed(0)),
   };
 }
+
+export type DailyLoad = {
+  date: string;
+  load: number;
+  ctl: number;
+  atl: number;
+  tsb: number;
+};
+
+const CTL_TIME_CONSTANT_DAYS = 42;
+const ATL_TIME_CONSTANT_DAYS = 7;
+const MAX_WARMUP_DAYS = 180;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function startOfDay(date: Date): Date {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
+
+function addDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function dateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Builds a day-by-day Fitness (CTL), Fatigue (ATL), and Form (TSB) series
+ * from each day's total effort score (see calculateEffortScore), using the
+ * same exponentially-weighted moving average approach as TrainingPeaks'
+ * Performance Management Chart:
+ *   CTL ("Fitness") = 42-day EWMA of daily training load
+ *   ATL ("Fatigue") = 7-day EWMA of daily training load
+ *   TSB ("Form")    = CTL - ATL
+ *
+ * The EWMA starts at the earliest available activity (seeded at 0) so CTL/ATL
+ * have time to "warm up" before the returned window, then returns the most
+ * recent `displayDays` days ending on `referenceDate`.
+ */
+export function calculateFitnessSeries(
+  activities: ActivityRecord[],
+  displayDays: number,
+  referenceDate: Date
+): DailyLoad[] {
+  const dailyLoad = new Map<string, number>();
+  let earliest: Date | null = null;
+
+  activities.forEach((activity) => {
+    const dateValue = activity.raw_json?.start_date;
+    if (!dateValue) return;
+
+    const activityDate = new Date(dateValue);
+    if (Number.isNaN(activityDate.valueOf())) return;
+
+    const key = dateKey(activityDate);
+    dailyLoad.set(key, (dailyLoad.get(key) ?? 0) + calculateEffortScore(activity.raw_json));
+
+    if (!earliest || activityDate < earliest) earliest = activityDate;
+  });
+
+  const today = startOfDay(referenceDate);
+  const displayStart = addDays(today, -(displayDays - 1));
+  const earliestWarmup = addDays(today, -(displayDays + MAX_WARMUP_DAYS - 1));
+
+  const start =
+    earliest && startOfDay(earliest) < displayStart
+      ? new Date(Math.max(startOfDay(earliest).getTime(), earliestWarmup.getTime()))
+      : displayStart;
+
+  const totalDays = Math.round((today.getTime() - start.getTime()) / MS_PER_DAY) + 1;
+
+  const ctlAlpha = 1 - Math.exp(-1 / CTL_TIME_CONSTANT_DAYS);
+  const atlAlpha = 1 - Math.exp(-1 / ATL_TIME_CONSTANT_DAYS);
+
+  let ctl = 0;
+  let atl = 0;
+  const series: DailyLoad[] = [];
+
+  for (let i = 0; i < totalDays; i += 1) {
+    const day = addDays(start, i);
+    const key = dateKey(day);
+    const load = dailyLoad.get(key) ?? 0;
+
+    ctl += (load - ctl) * ctlAlpha;
+    atl += (load - atl) * atlAlpha;
+
+    series.push({
+      date: key,
+      load,
+      ctl: Number(ctl.toFixed(1)),
+      atl: Number(atl.toFixed(1)),
+      tsb: Number((ctl - atl).toFixed(1)),
+    });
+  }
+
+  return series.slice(-displayDays);
+}

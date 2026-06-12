@@ -24,6 +24,7 @@ function SettingsContent() {
   const [connectingStrava, setConnectingStrava] = useState(false);
   const [hasStravaConnection, setHasStravaConnection] = useState(false);
   const [stravaAthleteId, setStravaAthleteId] = useState<number | null>(null);
+  const [stravaScope, setStravaScope] = useState<string | null>(null);
 
   const stravaConnected = searchParams.get("strava");
   const stravaConnectedParam =
@@ -97,6 +98,7 @@ function SettingsContent() {
         if (mounted.current) {
           setHasStravaConnection(Boolean(data?.has_connection));
           setStravaAthleteId(data?.athlete_id ?? null);
+          setStravaScope(data?.scope ?? null);
         }
       } catch (err) {
         console.error("Failed to load Strava connection status:", err);
@@ -143,6 +145,11 @@ function SettingsContent() {
 
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  const missingActivityReadAll =
+    hasStravaConnection &&
+    !!stravaScope &&
+    !stravaScope.split(",").map((s) => s.trim()).includes("activity:read_all");
 
   return (
     <main className="min-h-[calc(100vh-88px)] bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-950 px-6 py-10 text-white">
@@ -198,6 +205,23 @@ function SettingsContent() {
                 )}
                 <StravaSyncButton />
               </div>
+              {missingActivityReadAll && (
+                <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-950/30 p-4 text-sm text-amber-200 shadow-lg shadow-black/20">
+                  <p className="font-semibold">Private activities aren&apos;t syncing</p>
+                  <p className="mt-1 leading-6">
+                    Strava is connected, but full activity access wasn&apos;t granted, so activities you&apos;ve marked as
+                    &quot;Only You&quot; aren&apos;t being synced. Grant full access to import all of your activities.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={connectingStrava}
+                    onClick={connectStrava}
+                    className="mt-3 inline-flex items-center rounded-lg bg-amber-600 px-4 py-2 font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {connectingStrava ? "Connecting..." : "Grant full access to all activities"}
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             <p className="mt-4 text-base text-slate-300">Loading account details...</p>

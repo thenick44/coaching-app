@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
   stravaAuthUrl.searchParams.set("redirect_uri", redirectUri);
   stravaAuthUrl.searchParams.set("response_type", "code");
   stravaAuthUrl.searchParams.set("scope", scopes);
+  stravaAuthUrl.searchParams.set("approval_prompt", "force");
   stravaAuthUrl.searchParams.set("state", createStravaOAuthState(userId, clientSecret));
 
   return NextResponse.json({ url: stravaAuthUrl.toString() });
